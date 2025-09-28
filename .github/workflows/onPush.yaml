@@ -1,0 +1,55 @@
+name: On Push trigger
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify-changes:
+    name: Verify changes made
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'arts-n-crafts' }}
+    steps:
+      - &checkout
+        name: 💾 Checkout repository...
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - &install-rust
+        name: ⚙️ Install Rust toolchain...
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - &binstall
+        name: 🗄️ Install cargo-binstall...
+        run: |
+          curl -L https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-gnu.tgz \
+            | tar -xz -C ~/.cargo/bin
+
+      - &install-test-tools
+        name: 🪛 Install nextest test-tool...
+        run: |
+          cargo binstall --no-confirm cargo-nextest
+
+      - name: 🔨 Install coverage dev-tools...
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: 🔧️ Install audit dev-tools...
+        run: |
+          cargo binstall --no-confirm cargo-audit
+
+      - name: 🧪 Running tests and code coverage...
+        run: cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100
+
+      - name: ☣️ Checking for security vulnerabilities...
+        run: RUST_LOG=info cargo audit --quiet
+
+      - name: ✨ Formatting with fmt...
+        run: cargo fmt --all -- --check
+
+      - name: 📝 Linting with clippy...
+        run: cargo clippy --all-targets --all-features

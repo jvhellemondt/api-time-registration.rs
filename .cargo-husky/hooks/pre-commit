@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+echo "▶️ Running pre-commit hook..."
+
+echo "🧪 Running tests and code coverage..."
+cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100
+
+echo "☣️ Checking for security vulnerabilities..."
+RUST_LOG=info cargo audit --quiet
+
+echo "✨ Formatting with fmt..."
+cargo fmt --all -- --check
+
+echo "📝 Linting with clippy..."
+cargo clippy --all-targets --all-features
+
+echo "✅ Pre-commit checks passed successfully!"

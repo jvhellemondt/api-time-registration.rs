@@ -1,0 +1,40 @@
+name: time_registration_rs-pulsar
+services:
+  pulsar:
+    image: "apachepulsar/pulsar:latest"
+    container_name: pulsar
+    command: bin/pulsar standalone
+    environment:
+      PULSAR_MEM: " -Xms512m -Xmx512m -XX:MaxDirectMemorySize=1g"
+    volumes:
+      - time_registration_rs_pulsar-data:/pulsar/data
+      - ./conf/standalone.conf:/pulsar/conf/standalone.conf
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - network_pulsar
+
+  pulsar-manager:
+    image: "apachepulsar/pulsar-manager:latest"
+    platform: linux/amd64
+    ports:
+      - "9527:9527"
+      - "7750:7750"
+    depends_on:
+      - pulsar
+    environment:
+      SPRING_CONFIGURATION_FILE: /pulsar-manager/pulsar-manager/application.properties
+    networks:
+      - network_pulsar
+
+networks:
+  network_pulsar:
+    name: network_pulsar
+    driver: bridge
+
+volumes:
+  time_registration_rs_pulsar-data:
+    driver: local
+    name: pulsar-data

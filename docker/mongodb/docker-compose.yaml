@@ -1,0 +1,39 @@
+name: anc_rs_mongodb
+services:
+  mongodb:
+    image: mongo:latest
+    hostname: mongodb
+    restart: no
+    volumes:
+      - anc_rs_mongodb-data:/data/db/
+      - anc_rs_mongodb-log:/var/log/mongodb/
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    ports:
+      - "27017:27017"
+
+  mongodb-express:
+    image: mongo-express:latest
+    restart: no
+    environment:
+      ME_CONFIG_BASICAUTH: false
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: true
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_SERVER: mongodb
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+    deploy:
+      replicas: ${MONGO_EXPRESS_REPLICAS:-1}
+
+volumes:
+  anc_rs_mongodb-data:
+    driver: local
+    name: mongodb-data
+  anc_rs_mongodb-log:
+    driver: local
+    name: mongodb-log
