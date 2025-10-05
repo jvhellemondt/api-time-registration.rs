@@ -15,7 +15,7 @@ test-integration = "cargo nextest run --workspace --retries 2 -- --ignored integ
 coverage = "cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100 --show-missing-lines"
 
 [dependencies]
-arts-n-crafts = "0.1.1"
+arts-n-crafts = "0.1.2"
 dotenvy = "0.15.7"
 futures = "0.3.31"
 pulsar = "6.4.1"
@@ -26,6 +26,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["sync", "rt"] }
 async-trait = "0.1.89"
 thiserror = "2.0.16"
+strum_macros = "0.27.2"
 
 [dependencies.uuid]
 version = "1.18.1"
