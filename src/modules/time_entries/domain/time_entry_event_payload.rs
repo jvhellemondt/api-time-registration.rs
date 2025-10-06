@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::AsRefStr;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, AsRefStr)]
+#[serde(untagged)]
 pub enum TimeEntryEventPayload {
     TimeEntryRegistered {
         user_id: String,

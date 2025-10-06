@@ -1,1 +1,1 @@
-mod time_entries;
+pub mod time_entries;

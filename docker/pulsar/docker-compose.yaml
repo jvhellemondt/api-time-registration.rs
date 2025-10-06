@@ -24,6 +24,8 @@ services:
       - "7750:7750"
     depends_on:
       - pulsar
+    volumes:
+      - ./conf/application.properties:/pulsar-manager/pulsar-manager/application.properties
     environment:
       SPRING_CONFIGURATION_FILE: /pulsar-manager/pulsar-manager/application.properties
     networks:
