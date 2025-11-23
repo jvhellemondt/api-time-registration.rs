@@ -16,20 +16,19 @@ coverage = "cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail
 
 [dependencies]
 arts-n-crafts = "0.1.2"
-dotenvy = "0.15.7"
-futures = "0.3.31"
-pulsar = "6.4.1"
 rstest = "0.26.1"
 chrono = "0.4.42"
 mongodb = "3.3.0"
 serde = { version = "1.0.219", features = ["derive"] }
-tokio = { version = "1.47.1", features = ["sync", "rt"] }
+tokio = { version = "1.47.1", features = ["full", "macros", "sync", "rt"] }
 async-trait = "0.1.89"
 thiserror = "2.0.16"
 strum_macros = "0.27.2"
 reqwest = { version = "0.12.23", features = ["json"] }
 serde_json = "1.0.145"
-base64 = "0.13.1"
+salvo = { version = "0.84.2", features = ["full", "quinn"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
 
 [dependencies.uuid]
 version = "1.18.1"
