@@ -1,4 +1,25 @@
 [package]
 name = "time_entries"
 version = "0.1.0"
-edition = "2021"
+description = "Backend API to register time entries."
+edition = "2024"
+readme = "README.md"
+repository = "https://github.com/jvhellemondt/api-time-registration.rs"
+
+[package.metadata.scripts]
+fmt = "cargo fmt --all -- --check"
+fmt-fix = "cargo fmt --all"
+lint = "cargo clippy --all-targets --all-features"
+test = "cargo nextest run --workspace --retries 2"
+test-integration = "cargo nextest run --workspace --retries 2 -- --ignored integration"
+coverage = "cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100 --show-missing-lines"
+
+[dev-dependencies]
+dotenvy = "0.15.7"
+rstest = "0.26.1"
+
+[dependencies]
+chrono = "0.4.43"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.20.0", features = ["v7", "serde"] }

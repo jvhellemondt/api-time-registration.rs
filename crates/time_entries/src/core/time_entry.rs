@@ -10,3 +10,5 @@
 // Import pattern
 // - Use 'pub mod state;' etc. in this file once you add code. For now, see files in core/time_entry/.
 
+pub mod state;
+pub mod event;
