@@ -1,0 +1,12 @@
+// This module groups time entry domain components in 2018 style.
+//
+// Structure
+// - state.rs: domain state
+// - event.rs + event/: root event enum and versioned payloads
+// - evolve.rs: pure state transitions
+// - decider/: pure decision logic per command intent
+// - projector/: mapping from events to read model mutations
+//
+// Import pattern
+// - Use 'pub mod state;' etc. in this file once you add code. For now, see files in core/time_entry/.
+
