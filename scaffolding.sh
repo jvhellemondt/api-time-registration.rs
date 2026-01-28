@@ -116,7 +116,7 @@ Navigation
 - Start in core/time_entry to understand the domain state and events.
 - See application/command_handlers for how write commands are executed.
 - See application/projector for read model building.
-- See adapters/inmemory for test-friendly implementations.
+- See adapters/in_memory for test-friendly implementations.
 
 Testing
 - Unit test core deciders and evolve functions.
@@ -507,9 +507,9 @@ Boundaries
 - Adapters may perform input and output and depend on external libraries.
 "
 
-# adapters/inmemory
-mkdir -p "$CRATE_DIR/src/adapters/inmemory"
-mkdoc "$CRATE_DIR/src/adapters/inmemory/README.md" "# adapters/inmemory folder
+# adapters/in_memory
+mkdir -p "$CRATE_DIR/src/adapters/in_memory"
+mkdoc "$CRATE_DIR/src/adapters/in_memory/README.md" "# adapters/in_memory folder
 
 Purpose
 - Simple in memory implementations of ports and repositories for tests and development.
@@ -523,7 +523,7 @@ What belongs here
 Boundaries
 - These implementations are not for production and do not persist data across process restarts.
 "
-mkfile_text "$CRATE_DIR/src/adapters/inmemory/inmem_event_store.rs" "// In memory implementation of the EventStore port.
+mkfile_text "$CRATE_DIR/src/adapters/in_memory/in_memory_event_store.rs" "// In memory implementation of the EventStore port.
 //
 // Purpose
 // - Support command handler tests and local development without a database.
@@ -532,7 +532,7 @@ mkfile_text "$CRATE_DIR/src/adapters/inmemory/inmem_event_store.rs" "// In memor
 // - Store events per stream in memory.
 // - Enforce optimistic concurrency by checking the expected version.
 "
-mkfile_text "$CRATE_DIR/src/adapters/inmemory/inmem_domain_outbox.rs" "// In memory implementation of the DomainOutbox port.
+mkfile_text "$CRATE_DIR/src/adapters/in_memory/in_memory_domain_outbox.rs" "// In memory implementation of the DomainOutbox port.
 //
 // Purpose
 // - Support tests and development for verifying that command handlers enqueue domain events.
@@ -540,7 +540,7 @@ mkfile_text "$CRATE_DIR/src/adapters/inmemory/inmem_domain_outbox.rs" "// In mem
 // Responsibilities
 // - Collect enqueued domain events in a list for inspection.
 "
-mkfile_text "$CRATE_DIR/src/adapters/inmemory/inmem_projections.rs" "// In memory projection repository, watermark repository, and query handler.
+mkfile_text "$CRATE_DIR/src/adapters/in_memory/in_memory_projections.rs" "// In memory projection repository, watermark repository, and query handler.
 //
 // Purpose
 // - Exercise projectors and queries without a database.
@@ -601,14 +601,14 @@ mkfile_text "$CRATE_DIR/tests/register_decide_tests.rs" "// Unit tests for the r
 // - Assert the happy path emits the expected event.
 // - Assert the evolve function produces the registered state.
 "
-mkfile_text "$CRATE_DIR/tests/register_flow_inmem_tests.rs" "// End to end in memory test for the registration command flow.
+mkfile_text "$CRATE_DIR/tests/register_flow_in_memory_tests.rs" "// End to end in memory test for the registration command flow.
 //
 // Responsibilities when you add code
 // - Use in memory event store and in memory domain outbox.
 // - Call the registration command handler.
 // - Assert that the event store version increments and that outbox rows are produced.
 "
-mkfile_text "$CRATE_DIR/tests/projector_inmem_tests.rs" "// Tests for the projector mapping and runner using in memory repositories.
+mkfile_text "$CRATE_DIR/tests/projector_in_memory_tests.rs" "// Tests for the projector mapping and runner using in memory repositories.
 //
 // Responsibilities when you add code
 // - Feed a registration event and assert an upserted read model row exists.

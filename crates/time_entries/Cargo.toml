@@ -19,8 +19,11 @@ dotenvy = "0.15.7"
 rstest = "0.26.1"
 
 [dependencies]
+anyhow = "1.0.100"
+async-trait = "0.1.89"
 chrono = "0.4.43"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 uuid = { version = "1.20.0", features = ["v7", "serde"] }
+tokio = { version = "1.49.0", features = ["rt", "macros", "sync"] }
