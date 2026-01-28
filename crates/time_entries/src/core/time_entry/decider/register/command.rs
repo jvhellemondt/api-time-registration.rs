@@ -15,35 +15,35 @@ pub struct RegisterTimeEntry {
     pub end_time: i64,
     pub tags: Vec<String>,
     pub description: String,
+    pub created_at: i64,
     pub created_by: String,
 }
 
 #[cfg(test)]
 mod time_entry_registered_event_tests {
     use super::*;
-    use rstest::{rstest, fixture};
-    use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use crate::test_fixtures::make_time_entry_registered_v1_event;
+    use crate::test_fixtures::make_register_time_entry_command;
+    use rstest::{fixture, rstest};
 
     #[fixture]
-    fn registered_event() -> TimeEntryRegisteredV1 {
-        make_time_entry_registered_v1_event()
+    fn register_command() -> RegisterTimeEntry {
+        make_register_time_entry_command()
     }
 
     #[rstest]
-    fn it_should_create_the_command(registered_event: TimeEntryRegisteredV1) {
+    fn it_should_create_the_command(register_command: RegisterTimeEntry) {
         let command = RegisterTimeEntry {
-            time_entry_id: registered_event.time_entry_id.clone(),
-            user_id: registered_event.user_id.clone(),
-            start_time: registered_event.start_time,
-            end_time: registered_event.end_time,
-            tags: registered_event.tags.clone(),
-            description: registered_event.description,
-            created_by: registered_event.created_by,
+            time_entry_id: register_command.time_entry_id.clone(),
+            user_id: register_command.user_id.clone(),
+            start_time: register_command.start_time,
+            end_time: register_command.end_time,
+            tags: register_command.tags.clone(),
+            description: register_command.description,
+            created_at: register_command.created_at,
+            created_by: register_command.created_by,
         };
-        assert_eq!(command.time_entry_id, registered_event.time_entry_id);
-        assert_eq!(command.user_id, registered_event.user_id);
-        assert_eq!(command.tags, registered_event.tags);
+        assert_eq!(command.time_entry_id, register_command.time_entry_id);
+        assert_eq!(command.user_id, register_command.user_id);
+        assert_eq!(command.tags, register_command.tags);
     }
-
 }

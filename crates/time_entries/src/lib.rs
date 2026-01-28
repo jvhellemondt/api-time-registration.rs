@@ -15,7 +15,8 @@ pub mod core {
 
 #[cfg(test)]
 pub mod test_fixtures {
-    // Re-export helpers in a clean namespace for tests.
-    // Adjust the relative path if your workspace structure differs.
-    include!("../tests/fixtures/events/struct/TimeEntryRegisteredV1.rs");
+    // Event fixtures
+    include!("../tests/fixtures/events/TimeEntryRegisteredV1.rs");
+    // Command fixtures
+    include!("../tests/fixtures/commands/RegisterTimeEntry.rs");
 }

@@ -30,10 +30,10 @@ pub struct TimeEntryRegisteredV1 {
 
 #[cfg(test)]
 mod time_entry_registered_event_tests {
-    use std::fs;
     use super::*;
-    use rstest::{rstest, fixture};
     use crate::test_fixtures::make_time_entry_registered_v1_event;
+    use rstest::{fixture, rstest};
+    use std::fs;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -54,7 +54,10 @@ mod time_entry_registered_event_tests {
     }
 
     #[rstest]
-    fn it_serializes_registered_event_stable(registered_event: TimeEntryRegisteredV1, golden_registered_event_json: serde_json::Value) {
+    fn it_serializes_registered_event_stable(
+        registered_event: TimeEntryRegisteredV1,
+        golden_registered_event_json: serde_json::Value,
+    ) {
         let json = serde_json::to_value(&registered_event).unwrap();
         assert_eq!(json, golden_registered_event_json);
     }

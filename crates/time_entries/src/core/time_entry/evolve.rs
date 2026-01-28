@@ -15,23 +15,22 @@ use crate::core::time_entry::state::TimeEntryState;
 
 pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
     match (state, event) {
-        (
-            TimeEntryState::None,
-            TimeEntryEvent::TimeEntryRegisteredV1(e),
-        ) => TimeEntryState::Registered {
-            time_entry_id: e.time_entry_id,
-            user_id: e.user_id,
-            start_time: e.start_time,
-            end_time: e.end_time,
-            tags: e.tags,
-            description: e.description,
-            created_at: e.created_at,
-            created_by: e.created_by.clone(),
-            updated_at: e.created_at,
-            updated_by: e.created_by,
-            deleted_at: None,
-            last_event_id: None,
-        },
+        (TimeEntryState::None, TimeEntryEvent::TimeEntryRegisteredV1(e)) => {
+            TimeEntryState::Registered {
+                time_entry_id: e.time_entry_id,
+                user_id: e.user_id,
+                start_time: e.start_time,
+                end_time: e.end_time,
+                tags: e.tags,
+                description: e.description,
+                created_at: e.created_at,
+                created_by: e.created_by.clone(),
+                updated_at: e.created_at,
+                updated_by: e.created_by,
+                deleted_at: None,
+                last_event_id: None,
+            }
+        }
         (state, _) => state,
     }
 }
@@ -39,9 +38,9 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
 #[cfg(test)]
 mod time_entry_evolve_tests {
     use super::*;
-    use rstest::{rstest, fixture};
     use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::test_fixtures::make_time_entry_registered_v1_event;
+    use rstest::{fixture, rstest};
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -50,7 +49,10 @@ mod time_entry_evolve_tests {
 
     #[rstest]
     fn it_should_evolve_the_state_to_registered(registered_event: TimeEntryRegisteredV1) {
-        let state = evolve(TimeEntryState::None, TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()));
+        let state = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
+        );
 
         match state {
             TimeEntryState::Registered {
@@ -86,7 +88,10 @@ mod time_entry_evolve_tests {
 
     #[rstest]
     fn it_should_not_change_on_duplicate_registered_event(registered_event: TimeEntryRegisteredV1) {
-        let registered = evolve(TimeEntryState::None, TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()));
+        let registered = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
+        );
 
         let ev = TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
             time_entry_id: "te-fixed-0001".into(),
@@ -100,6 +105,10 @@ mod time_entry_evolve_tests {
         });
 
         let next = evolve(registered.clone(), ev);
-        assert_eq!(format!("{:?}", next), format!("{:?}", registered), "state should be unchanged by fallback arm");
+        assert_eq!(
+            format!("{:?}", next),
+            format!("{:?}", registered),
+            "state should be unchanged by fallback arm"
+        );
     }
 }

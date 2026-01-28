@@ -1,0 +1,10 @@
+{
+	"time_entry_id": "te-fixed-0001",
+	"user_id": "user-fixed-0001",
+	"start_time": 1700000000000,
+	"end_time": 1700000360000,
+	"tags": [
+		"Work"
+	],
+	"description": "This is a test"
+}
