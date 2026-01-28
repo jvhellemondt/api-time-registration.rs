@@ -33,19 +33,11 @@ mod time_entry_registered_event_tests {
     use std::fs;
     use super::*;
     use rstest::{rstest, fixture};
+    use crate::test_fixtures::make_time_entry_registered_v1_event;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
-        TimeEntryRegisteredV1 {
-            time_entry_id: "te-fixed-0001".to_string(),
-            user_id: "user-fixed-0001".to_string(),
-            start_time: 1_700_000_000_000,
-            end_time: 1_700_000_360_000,
-            tags: vec!["Work".to_string()],
-            description: "This is a test".to_string(),
-            created_at: 1_700_000_000_000,
-            created_by: "user-fixed-0001".to_string(),
-        }
+        make_time_entry_registered_v1_event()
     }
 
     #[rstest]
@@ -57,7 +49,7 @@ mod time_entry_registered_event_tests {
 
     #[fixture]
     fn golden_registered_event_json() -> serde_json::Value {
-        let s = fs::read_to_string("tests/fixtures/events/registered_event_v1.json").unwrap();
+        let s = fs::read_to_string("tests/fixtures/events/json/registered_event_v1.json").unwrap();
         serde_json::from_str(&s).unwrap()
     }
 
