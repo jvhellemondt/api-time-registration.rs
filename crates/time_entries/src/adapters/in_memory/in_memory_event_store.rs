@@ -56,7 +56,7 @@ mod time_entry_in_memory_event_store_tests {
     #[tokio::test]
     async fn it_should_append_and_load_an_event() {
         let store = InMemoryEventStore::<DomainEvent>::new();
-        let event = DomainEvent { event_type: "test" };
+        let event = DomainEvent { name: "Teddy Test" };
         store
             .append("1", 0, &vec![event])
             .await
@@ -68,7 +68,7 @@ mod time_entry_in_memory_event_store_tests {
         assert_eq!(stream.version, 1);
         let stream_events = stream.events;
         assert_eq!(stream_events.len(), 1);
-        assert_eq!(stream_events.get(0).unwrap().event_type, "test");
+        assert_eq!(stream_events.get(0).unwrap().name, "Teddy Test");
     }
 
     #[rstest]
@@ -77,13 +77,13 @@ mod time_entry_in_memory_event_store_tests {
         let store = InMemoryEventStore::<DomainEvent>::new();
         let events = vec![
             DomainEvent {
-                event_type: "test_1",
+                name: "Teddy Test_1",
             },
             DomainEvent {
-                event_type: "test_2",
+                name: "Teddy Test_2",
             },
             DomainEvent {
-                event_type: "test_3",
+                name: "Teddy Test_3",
             },
         ];
         store
@@ -97,16 +97,16 @@ mod time_entry_in_memory_event_store_tests {
         assert_eq!(stream.version, 3);
         let stream_events = stream.events;
         assert_eq!(stream_events.len(), 3);
-        assert_eq!(stream_events.get(0).unwrap().event_type, "test_1");
-        assert_eq!(stream_events.get(1).unwrap().event_type, "test_2");
-        assert_eq!(stream_events.get(2).unwrap().event_type, "test_3");
+        assert_eq!(stream_events.get(0).unwrap().name, "Teddy Test_1");
+        assert_eq!(stream_events.get(1).unwrap().name, "Teddy Test_2");
+        assert_eq!(stream_events.get(2).unwrap().name, "Teddy Test_3");
     }
 
     #[rstest]
     #[tokio::test]
     async fn it_should_fail_to_append_if_the_wrong_version_is_expected() {
         let store = InMemoryEventStore::<DomainEvent>::new();
-        let event = DomainEvent { event_type: "test" };
+        let event = DomainEvent { name: "Teddy Test" };
         let store_result= store
             .append("1", 1, &vec![event])
             .await;
