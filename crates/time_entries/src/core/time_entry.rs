@@ -16,5 +16,6 @@ pub mod state;
 pub mod decider {
     pub mod register {
         pub mod command;
+        pub mod decide;
     }
 }

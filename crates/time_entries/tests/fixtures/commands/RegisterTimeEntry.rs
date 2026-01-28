@@ -17,43 +17,76 @@ pub struct RegisterTimeEntryDto {
     pub description: String,
 }
 
-/// Build a canonical, valid registration command for tests.
-/// All timestamps use epoch milliseconds consistently.
-pub fn make_register_time_entry_command() -> RegisterTimeEntry {
-    let json_str = fs::read_to_string("./tests/fixtures/commands/json/register_time_entry.json").unwrap();
-    let dto: RegisterTimeEntryDto = serde_json::from_str(&json_str).unwrap();
+pub struct RegisterTimeEntryBuilder {
+    inner: RegisterTimeEntry,
+}
 
-    RegisterTimeEntry {
-        time_entry_id: dto.time_entry_id,
-        user_id: dto.user_id,
-        start_time: dto.start_time,
-        end_time: dto.end_time,
-        tags: dto.tags,
-        description: dto.description,
-        created_by: "user-fixed-0001".to_string(),
-        created_at: 1700000000000,
+impl RegisterTimeEntryBuilder {
+    pub fn new() -> Self {
+        let json_str = fs::read_to_string("./tests/fixtures/commands/json/register_time_entry.json").unwrap();
+        let dto: RegisterTimeEntryDto = serde_json::from_str(&json_str).unwrap();
+
+        Self {
+            inner: RegisterTimeEntry {
+                time_entry_id: dto.time_entry_id,
+                user_id: dto.user_id,
+                start_time: dto.start_time,
+                end_time: dto.end_time,
+                tags: dto.tags,
+                description: dto.description,
+                created_by: "user-fixed-0001".to_string(),
+                created_at: 1700000000000,
+            }
+        }
+    }
+
+    pub fn time_entry_id(mut self, v: impl Into<String>) -> Self {
+        self.inner.time_entry_id = v.into();
+        self
+    }
+
+    pub fn user_id(mut self, v: impl Into<String>) -> Self {
+        self.inner.user_id = v.into();
+        self
+    }
+
+    pub fn start_time(mut self, v: i64) -> Self {
+        self.inner.start_time = v;
+        self
+    }
+
+    pub fn end_time(mut self, v: i64) -> Self {
+        self.inner.end_time = v;
+        self
+    }
+
+    pub fn tags(mut self, v: Vec<String>) -> Self {
+        self.inner.tags = v;
+        self
+    }
+
+    pub fn description(mut self, v: impl Into<String>) -> Self {
+        self.inner.description = v.into();
+        self
+    }
+
+    pub fn created_at(mut self, v: i64) -> Self {
+        self.inner.created_at = v;
+        self
+    }
+
+    pub fn created_by(mut self, v: impl Into<String>) -> Self {
+        self.inner.created_by = v.into();
+        self
+    }
+
+    pub fn build(self) -> RegisterTimeEntry {
+        self.inner
     }
 }
 
-pub fn make_register_time_entry_command_with(
-    time_entry_id: Option<String>,
-    user_id: Option<String>,
-    start_time: Option<i64>,
-    end_time: Option<i64>,
-    tags: Option<Vec<String>>,
-    description: Option<String>,
-    created_at: Option<i64>,
-    created_by: Option<String>,
-) -> RegisterTimeEntry {
-    let base = make_register_time_entry_command();
-    RegisterTimeEntry {
-        time_entry_id: time_entry_id.unwrap_or(base.time_entry_id),
-        user_id: user_id.unwrap_or(base.user_id),
-        start_time: start_time.unwrap_or(base.start_time),
-        end_time: end_time.unwrap_or(base.end_time),
-        tags: tags.unwrap_or(base.tags),
-        description: description.unwrap_or(base.description),
-        created_at: created_at.unwrap_or(base.created_at),
-        created_by: created_by.unwrap_or(base.created_by),
-    }
+/// Build a canonical, valid registration command for tests.
+/// All timestamps use epoch milliseconds consistently.
+pub fn make_register_time_entry_command() -> RegisterTimeEntry {
+    RegisterTimeEntryBuilder::new().build()
 }
