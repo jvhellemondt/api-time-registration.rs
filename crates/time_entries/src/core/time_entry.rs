@@ -13,3 +13,8 @@
 pub mod state;
 pub mod event;
 pub mod evolve;
+pub mod decider {
+    pub mod register {
+        pub mod command;
+    }
+}
