@@ -44,8 +44,8 @@ impl DomainOutbox for InMemoryDomainOutbox {
 #[cfg(test)]
 mod time_entry_in_memory_domain_outbox_tests {
     use super::*;
-    use crate::test_fixtures::DomainEvent;
     use rstest::rstest;
+    use crate::test_support::fixtures::events::domain_event::DomainEvent;
 
     #[rstest]
     #[tokio::test]

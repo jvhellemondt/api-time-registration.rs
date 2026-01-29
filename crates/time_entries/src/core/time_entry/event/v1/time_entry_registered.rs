@@ -7,8 +7,8 @@
 // - Carry only identifiers and snapshot values needed by the domain today.
 //
 // Inputs and outputs
-// - Inputs: values from the command validated by the decider.
-// - Outputs: fed into evolve to produce the first registered state and into projectors.
+// - Inputs: the decider validates values from the command.
+// - Outputs: fed into evolving to produce the first registered state and into projectors.
 //
 // Versioning and evolution
 // - Prefer adding fields. For breaking changes, create TimeEntryRegisteredV2 in a new file and add a new variant.
@@ -31,9 +31,9 @@ pub struct TimeEntryRegisteredV1 {
 #[cfg(test)]
 mod time_entry_registered_event_tests {
     use super::*;
-    use crate::test_fixtures::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
     use std::fs;
+    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -49,7 +49,7 @@ mod time_entry_registered_event_tests {
 
     #[fixture]
     fn golden_registered_event_json() -> serde_json::Value {
-        let s = fs::read_to_string("tests/fixtures/events/json/registered_event_v1.json").unwrap();
+        let s = fs::read_to_string("./src/test_support/fixtures/events/json/registered_event_v1.json").unwrap();
         serde_json::from_str(&s).unwrap()
     }
 

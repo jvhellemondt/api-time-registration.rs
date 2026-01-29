@@ -10,20 +10,24 @@ pub mod core {
     pub mod time_entry;
     pub mod ports;
 }
-// pub mod application;
+
+pub mod application {
+    pub mod errors;
+    pub mod command_handlers {
+        pub mod register_handler;
+    }
+}
+
 pub mod adapters {
     pub mod in_memory {
         pub mod in_memory_domain_outbox;
         pub mod in_memory_event_store;
     }
 }
+
 // pub mod shell;
 
 #[cfg(test)]
-pub mod test_fixtures {
-    // Event fixtures
-    include!("../tests/fixtures/events/TimeEntryRegisteredV1.rs");
-    include!("../tests/fixtures/events/DomainEvent.rs");
-    // Command fixtures
-    include!("../tests/fixtures/commands/RegisterTimeEntry.rs");
+pub mod test_support {
+    pub mod fixtures;
 }

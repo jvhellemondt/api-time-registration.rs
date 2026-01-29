@@ -3,10 +3,11 @@
 // only during tests via include! in src/lib.rs (cfg(test)).
 
 use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
+use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
 /// Builder function returning a canonical event instance for tests.
 pub fn make_time_entry_registered_v1_event() -> TimeEntryRegisteredV1 {
-    let command = make_register_time_entry_command();
+    let command = RegisterTimeEntryBuilder::new().build();
     TimeEntryRegisteredV1 {
         time_entry_id: command.time_entry_id,
         user_id: command.user_id,

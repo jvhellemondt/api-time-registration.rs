@@ -39,8 +39,8 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
 mod time_entry_evolve_tests {
     use super::*;
     use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use crate::test_fixtures::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
+    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {

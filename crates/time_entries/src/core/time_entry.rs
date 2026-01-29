@@ -8,7 +8,7 @@
 // - projector/: mapping from events to read model mutations
 //
 // Import pattern
-// - Use 'pub mod state;' etc. in this file once you add code. For now, see files in core/time_entry/.
+// - Use `pub mod state;` etc. in this file once you add code. For now, see files in core/time_entry/.
 
 pub mod event;
 pub mod evolve;

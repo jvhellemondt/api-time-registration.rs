@@ -51,12 +51,12 @@ pub fn decide_register(
 mod time_entry_register_decide_tests {
     use super::*;
     use crate::core::time_entry::evolve::evolve;
-    use crate::test_fixtures::{make_register_time_entry_command, RegisterTimeEntryBuilder};
     use rstest::{fixture, rstest};
+    use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
     #[fixture]
-    fn register_command() -> RegisterTimeEntry {
-        make_register_time_entry_command()
+    pub fn register_command() -> RegisterTimeEntry {
+        RegisterTimeEntryBuilder::new().build()
     }
 
     #[fixture]
