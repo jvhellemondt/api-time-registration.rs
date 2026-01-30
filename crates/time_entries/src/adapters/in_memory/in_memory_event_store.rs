@@ -13,12 +13,24 @@ use tokio::sync::RwLock;
 
 pub struct InMemoryEventStore<Event: Clone + Send + Sync + 'static> {
     inner: RwLock<HashMap<String, Vec<Event>>>,
+    is_offline: bool,
 }
+impl<Event: Clone + Send + Sync + 'static> Default for InMemoryEventStore<Event> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(HashMap::new()),
+            is_offline: false,
         }
+    }
+
+    pub fn toggle_offline(&mut self) {
+        self.is_offline = !self.is_offline;
     }
 }
 #[async_trait::async_trait]
@@ -27,6 +39,10 @@ where
     Event: Clone + Send + Sync + 'static,
 {
     async fn load(&self, id: &str) -> Result<LoadedStream<Event>, EventStoreError> {
+        if self.is_offline {
+            return Err(EventStoreError::Backend("Event store offline".to_string()))
+        }
+
         let guard = self.inner.read().await;
         let events = guard.get(id).cloned().unwrap_or_default();
         Ok(LoadedStream {
@@ -54,6 +70,19 @@ mod time_entry_in_memory_event_store_tests {
 
     #[rstest]
     #[tokio::test]
+    async fn it_should_initiate_with_new_and_default() {
+        let _store_with_new: InMemoryEventStore<DomainEvent> =
+            InMemoryEventStore::new();
+        let _store_with_default: InMemoryEventStore<DomainEvent> =
+            InMemoryEventStore::default();
+        let s1 = _store_with_new.load("id").await.unwrap();
+        let s2 = _store_with_default.load("id").await.unwrap();
+        assert!(s1.events.is_empty() && s1.version == 0);
+        assert!(s2.events.is_empty() && s2.version == 0);
+    }
+
+    #[rstest]
+    #[tokio::test]
     async fn it_should_append_and_load_an_event() {
         let store = InMemoryEventStore::<DomainEvent>::new();
         let event = DomainEvent { name: "Teddy Test" };
@@ -65,6 +94,7 @@ mod time_entry_in_memory_event_store_tests {
             .load("1")
             .await
             .expect("expected to load from the event_store");
+        assert_eq!(store.is_offline, false);
         assert_eq!(stream.version, 1);
         let stream_events = stream.events;
         assert_eq!(stream_events.len(), 1);
@@ -117,6 +147,24 @@ mod time_entry_in_memory_event_store_tests {
                 assert_eq!(expected, 1);
             },
             _ => panic!("expected VersionMismatch error"),
+        }
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_fail_to_load_if_the_event_store_is_offline() {
+        let mut store = InMemoryEventStore::<DomainEvent>::new();
+        store.toggle_offline();
+        let stream_result = store
+            .load("1")
+            .await;
+        assert!(stream_result.is_err());
+        assert!(store.is_offline);
+        match stream_result {
+            Err(EventStoreError::Backend(msg)) => {
+                assert_eq!(msg, "Event store offline");
+            },
+            _ => panic!("expected EventStoreError::Backend error"),
         }
     }
 }
