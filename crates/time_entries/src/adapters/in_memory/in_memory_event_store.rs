@@ -9,11 +9,14 @@
 
 use crate::core::ports::{EventStore, EventStoreError, LoadedStream};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 pub struct InMemoryEventStore<Event: Clone + Send + Sync + 'static> {
     inner: RwLock<HashMap<String, Vec<Event>>>,
     is_offline: bool,
+    delay_append_ms: AtomicU64,
 }
 impl<Event: Clone + Send + Sync + 'static> Default for InMemoryEventStore<Event> {
     fn default() -> Self {
@@ -22,10 +25,17 @@ impl<Event: Clone + Send + Sync + 'static> Default for InMemoryEventStore<Event>
 }
 
 impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
+    pub fn set_delay_append_ms(&self, ms: u64) {
+        self.delay_append_ms.store(ms, Ordering::SeqCst);
+    }
+}
+
+impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
     pub fn new() -> Self {
         Self {
             inner: RwLock::new(HashMap::new()),
             is_offline: false,
+            delay_append_ms: AtomicU64::new(0),
         }
     }
 
@@ -33,6 +43,7 @@ impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
         self.is_offline = !self.is_offline;
     }
 }
+
 #[async_trait::async_trait]
 impl<Event> EventStore<Event> for InMemoryEventStore<Event>
 where
@@ -51,6 +62,10 @@ where
         })
     }
     async fn append(&self, stream_id: &str, expected_version: i64, new_events: &[Event]) -> Result<(), EventStoreError> {
+        let ms = self.delay_append_ms.load(Ordering::SeqCst);
+        if ms > 0 {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
+        }
         let mut g = self.inner.write().await;
         let entry = g.entry(stream_id.to_string()).or_default();
         let actual = entry.len() as i64;
@@ -85,6 +100,27 @@ mod time_entry_in_memory_event_store_tests {
     #[tokio::test]
     async fn it_should_append_and_load_an_event() {
         let store = InMemoryEventStore::<DomainEvent>::new();
+        let event = DomainEvent { name: "Teddy Test" };
+        store
+            .append("1", 0, &vec![event])
+            .await
+            .expect("expected to append to the event_store");
+        let stream = store
+            .load("1")
+            .await
+            .expect("expected to load from the event_store");
+        assert_eq!(store.is_offline, false);
+        assert_eq!(stream.version, 1);
+        let stream_events = stream.events;
+        assert_eq!(stream_events.len(), 1);
+        assert_eq!(stream_events.get(0).unwrap().name, "Teddy Test");
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_append_and_load_an_event_with_delay() {
+        let store = InMemoryEventStore::<DomainEvent>::new();
+        store.set_delay_append_ms(100);
         let event = DomainEvent { name: "Teddy Test" };
         store
             .append("1", 0, &vec![event])
