@@ -90,32 +90,42 @@ where
 
 #[cfg(test)]
 mod time_entry_register_time_entry_tests {
-    // Unit tests for the registration decider and the evolve function.
+    // Integration tests for the registration decider and the evolve function.
     //
     // Responsibilities when you add code
     // - Assert validation rules (end time after start time).
     // - Assert the happy path emits the expected event.
     // - Assert the evolve function produces the registered state.
 
-    use rstest::{rstest};
+    use rstest::{fixture, rstest};
     use crate::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
     use crate::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
     use crate::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
     use crate::application::errors::ApplicationError;
     use crate::core::ports::EventStore;
+    use crate::core::time_entry::decider::register::command::RegisterTimeEntry;
     use crate::core::time_entry::decider::register::decide::DecideError;
     use crate::core::time_entry::event::TimeEntryEvent;
     use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
-    #[rstest]
-    #[tokio::test]
-    async fn handle_register_appends_and_enqueues() {
+    const TOPIC: &str = "time-entries";
+
+    type BeforeEachReturn = (&'static str, RegisterTimeEntry, InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox);
+
+    #[fixture]
+    fn before_each() -> BeforeEachReturn {
         let stream_id = "time-entries-0001";
-        let topic = "time-entries";
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
         let outbox = InMemoryDomainOutbox::new();
         let command = RegisterTimeEntryBuilder::new().build();
-        let handler = TimeEntryRegisteredCommandHandler::new(topic, &event_store, &outbox);
+        ( stream_id, command, event_store, outbox )
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_register_appends_and_enqueues(before_each: BeforeEachReturn) {
+        let (stream_id, command, event_store, outbox) = before_each;
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
         handler
             .handle(stream_id, command)
             .await
@@ -129,13 +139,9 @@ mod time_entry_register_time_entry_tests {
 
     #[rstest]
     #[tokio::test]
-    async fn handle_register_fails_if_time_entry_exists() {
-        let stream_id = "time-entries-0001";
-        let topic = "time-entries";
-        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        let outbox = InMemoryDomainOutbox::new();
-        let command = RegisterTimeEntryBuilder::new().build();
-        let handler = TimeEntryRegisteredCommandHandler::new(topic, &event_store, &outbox);
+    async fn handle_register_fails_if_time_entry_exists(before_each: BeforeEachReturn) {
+        let (stream_id, command, event_store, outbox) = before_each;
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
         handler
             .handle(stream_id, command.clone())
             .await
