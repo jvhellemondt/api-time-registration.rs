@@ -98,11 +98,12 @@ mod time_entry_register_time_entry_tests {
     // - Assert the evolve function produces the registered state.
 
     use rstest::{fixture, rstest};
+    use tokio::join;
     use crate::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
     use crate::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
     use crate::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
     use crate::application::errors::ApplicationError;
-    use crate::core::ports::EventStore;
+    use crate::core::ports::{EventStore, EventStoreError};
     use crate::core::time_entry::decider::register::command::RegisterTimeEntry;
     use crate::core::time_entry::decider::register::decide::DecideError;
     use crate::core::time_entry::event::TimeEntryEvent;
@@ -152,6 +153,42 @@ mod time_entry_register_time_entry_tests {
             handle_result.unwrap_err().to_string(),
             ApplicationError::Domain(DecideError::AlreadyExists.to_string()).to_string()
         );
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_register_fails_if_event_store_is_offline(before_each: BeforeEachReturn) {
+        let (stream_id, command, mut event_store, outbox) = before_each;
+        event_store.toggle_offline();
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let handle_result = handler.handle(stream_id, command).await;
+        assert!(handle_result.is_err());
+        assert_eq!(
+            handle_result.unwrap_err().to_string(),
+            ApplicationError::VersionConflict(
+                EventStoreError::Backend("Event store offline".into())
+            ).to_string()
+        );
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_register_fails_if_event_store_has_a_mismatching_version(before_each: BeforeEachReturn) {
+        let (stream_id, command, event_store, outbox) = before_each;
+        event_store.set_delay_append_ms(10);
+        let handler1 = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let handler2 = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let (result1, result2) = join!(handler1.handle(stream_id, command.clone()), handler2.handle(stream_id, command));
+
+        assert!(result1.is_ok() ^ result2.is_ok(), "exactly one should fail with conflict");
+        let err = result1.err().or(result2.err()).unwrap();
+        match err {
+            ApplicationError::VersionConflict(EventStoreError::VersionMismatch { expected, actual }) => {
+                assert_eq!(expected, 0);
+                assert_eq!(actual, 1);
+            }
+            e => panic!("unexpected error: {e:?}"),
+        }
     }
 
 }
