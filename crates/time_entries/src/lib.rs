@@ -16,9 +16,10 @@ pub mod application {
     pub mod command_handlers {
         pub mod register_handler;
     }
-    
+
     pub mod projector {
         pub mod repository;
+        pub mod runner;
     }
 }
 
