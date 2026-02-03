@@ -16,12 +16,17 @@ pub mod application {
     pub mod command_handlers {
         pub mod register_handler;
     }
+    
+    pub mod projector {
+        pub mod repository;
+    }
 }
 
 pub mod adapters {
     pub mod in_memory {
         pub mod in_memory_domain_outbox;
         pub mod in_memory_event_store;
+        pub mod in_memory_projections;
     }
 }
 
