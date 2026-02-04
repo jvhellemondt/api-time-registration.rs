@@ -4,44 +4,41 @@
 // Purpose
 // - Guarantee idempotent application of events and safe recovery on failure.
 
+use std::sync::Arc;
 use crate::application::projector::repository::{
     TimeEntryProjectionRepository, WatermarkRepository,
 };
 use crate::core::time_entry::event::TimeEntryEvent;
 use crate::core::time_entry::projector::apply::{apply, Mutation};
 
-pub struct Projector<'a, TRepository, TWatermarkRepository>
+#[derive(Clone)]
+pub struct Projector<TRepository, TWatermarkRepository>
 where
-    TRepository: TimeEntryProjectionRepository,
-    TWatermarkRepository: WatermarkRepository,
+    TRepository: TimeEntryProjectionRepository + Send + Sync + 'static,
+    TWatermarkRepository: WatermarkRepository + Send + Sync + 'static,
 {
     pub name: String,
-    pub repository: &'a TRepository,
-    pub watermark_repository: &'a TWatermarkRepository,
+    pub repository: Arc<TRepository>,
+    pub watermark_repository: Arc<TWatermarkRepository>,
 }
-impl<'a, TRepository, TWatermarkRepository> Projector<'a, TRepository, TWatermarkRepository>
+
+impl<TRepository, TWatermarkRepository> Projector<TRepository, TWatermarkRepository>
 where
-    TRepository: TimeEntryProjectionRepository,
-    TWatermarkRepository: WatermarkRepository,
+    TRepository: TimeEntryProjectionRepository + Send + Sync + 'static,
+    TWatermarkRepository: WatermarkRepository + Send + Sync + 'static,
 {
     pub fn new(
-        name: String,
-        repository: &'a TRepository,
-        watermark: &'a TWatermarkRepository,
+        name: impl Into<String>,
+        repository: Arc<TRepository>,
+        watermark: Arc<TWatermarkRepository>,
     ) -> Self {
         Self {
-            name,
+            name: name.into(),
             repository,
             watermark_repository: watermark,
         }
     }
-}
 
-impl<'a, TRepository, TWatermarkRepository> Projector<'a, TRepository, TWatermarkRepository>
-where
-    TRepository: TimeEntryProjectionRepository,
-    TWatermarkRepository: WatermarkRepository,
-{
     pub async fn apply_one(
         &self,
         stream_id: &str,
@@ -79,7 +76,8 @@ mod time_entry_projector_runner_tests {
     #[tokio::test]
     async fn it_should_apply_mutations_to_the_repository(before_each: (TimeEntryRegisteredV1, InMemoryProjections)) {
         let (event, store) = before_each;
-        let projector = Projector::new("projector-name".to_string(), &store, &store);
+        let st = Arc::new(store);
+        let projector = Projector::new("projector-name".to_string(), st.clone(), st.clone());
         projector
             .apply_one(
                 "time-entries-0001",
@@ -89,7 +87,7 @@ mod time_entry_projector_runner_tests {
             .await
             .expect("InMemoryProjections > upsert failed");
         assert_eq!(
-            store.get("projector-name").await.unwrap(),
+            st.get("projector-name").await.unwrap(),
             Some(String::from("time-entries-0001:0"))
         );
     }
@@ -99,7 +97,8 @@ mod time_entry_projector_runner_tests {
     async fn it_should_fail_if_the_repository_is_offline(before_each: (TimeEntryRegisteredV1, InMemoryProjections)) {
         let (event, mut store) = before_each;
         store.toggle_offline();
-        let projector = Projector::new("projector-name".to_string(), &store, &store);
+        let st = Arc::new(store);
+        let projector = Projector::new("projector-name".to_string(), st.clone(), st.clone());
         let result = projector
             .apply_one(
                 "time-entries-0001",
@@ -117,7 +116,8 @@ mod time_entry_projector_runner_tests {
         let (event, store) = before_each;
         let mut watermark_repository = InMemoryProjections::new();
         watermark_repository.toggle_offline();
-        let projector = Projector::new("projector-name".to_string(), &store, &watermark_repository);
+        let wm = Arc::new(watermark_repository);
+        let projector = Projector::new("projector-name".to_string(), Arc::new(store), wm);
         let result = projector
             .apply_one(
                 "time-entries-0001",

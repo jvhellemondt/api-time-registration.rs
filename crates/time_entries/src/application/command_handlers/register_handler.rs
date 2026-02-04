@@ -6,6 +6,7 @@
 // - Append new events with optimistic concurrency.
 // - Enqueue domain events into the domain outbox for publishing.
 
+use std::sync::Arc;
 use crate::application::errors::ApplicationError;
 use crate::core::ports::{DomainOutbox, EventStore, OutboxRow};
 use crate::core::time_entry::decider::register::command::RegisterTimeEntry;
@@ -13,30 +14,27 @@ use crate::core::time_entry::decider::register::decide::decide_register;
 use crate::core::time_entry::event::TimeEntryEvent;
 use crate::core::time_entry::evolve::evolve;
 use crate::core::time_entry::state::TimeEntryState;
-use std::marker::PhantomData;
 
-pub struct TimeEntryRegisteredCommandHandler<'a, TEventStore, TOutbox>
+pub struct TimeEntryRegisteredCommandHandler<TEventStore, TOutbox>
 where
-    TEventStore: EventStore<TimeEntryEvent> + Sync + 'a,
-    TOutbox: DomainOutbox + Sync + 'a,
+    TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
+    TOutbox: DomainOutbox + Send + Sync + 'static,
 {
-    topic: &'a str,
-    event_store: &'a TEventStore,
-    outbox: &'a TOutbox,
-    _pd: PhantomData<&'a ()>,
+    topic: String,
+    event_store: Arc<TEventStore>,
+    outbox: Arc<TOutbox>,
 }
 
-impl<'a, TEventStore, TOutbox> TimeEntryRegisteredCommandHandler<'a, TEventStore, TOutbox>
+impl<TEventStore, TOutbox> TimeEntryRegisteredCommandHandler<TEventStore, TOutbox>
 where
-    TEventStore: EventStore<TimeEntryEvent> + Sync + 'a,
-    TOutbox: DomainOutbox + Sync + 'a,
+    TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
+    TOutbox: DomainOutbox + Send + Sync + 'static,
 {
-    pub fn new(topic: &'a str, event_store: &'a TEventStore, outbox: &'a TOutbox) -> Self {
+    pub fn new(topic: impl Into<String>, event_store: Arc<TEventStore>, outbox: Arc<TOutbox>) -> Self {
         Self {
-            topic,
+            topic: topic.into(),
             event_store,
             outbox,
-            _pd: PhantomData,
         }
     }
 
@@ -45,45 +43,51 @@ where
         stream_id: &str,
         command: RegisterTimeEntry,
     ) -> Result<(), ApplicationError> {
+        // 1) Load
         let stream = self
             .event_store
             .load(stream_id)
             .await
             .map_err(ApplicationError::VersionConflict)?;
+
+        // 2) Fold
         let state = stream
             .events
             .iter()
             .cloned()
             .fold(TimeEntryState::None, evolve);
+
+        // 3) Decide (pure)
         let new_events = decide_register(&state, command)
             .map_err(|e| ApplicationError::Domain(e.to_string()))?;
 
+        // 4) Append (optimistic concurrency)
         self.event_store
             .append(stream_id, stream.version, &new_events)
             .await
             .map_err(ApplicationError::VersionConflict)?;
 
+        // 5) Enqueue outbox rows (Design B: cols + event body in payload)
         let mut stream_version = stream.version;
         for event in &new_events {
             stream_version += 1;
-            match event {
-                TimeEntryEvent::TimeEntryRegisteredV1(body) => {
-                    let row = OutboxRow {
-                        topic: self.topic.to_string(),
-                        event_type: "TimeEntryRegistered".to_string(),
-                        event_version: 1,
-                        stream_id: stream_id.to_string(),
-                        stream_version,
-                        occurred_at: body.created_at,
-                        payload: serde_json::to_value(body).unwrap(),
-                    };
-                    self.outbox
-                        .enqueue(row)
-                        .await
-                        .map_err(ApplicationError::Outbox)?
-                }
+            if let TimeEntryEvent::TimeEntryRegisteredV1(body) = event {
+                let row = OutboxRow {
+                    topic: self.topic.clone(),
+                    event_type: "TimeEntryRegistered".to_string(),
+                    event_version: 1,
+                    stream_id: stream_id.to_string(),
+                    stream_version,
+                    occurred_at: body.created_at,
+                    payload: serde_json::to_value(body).unwrap(),
+                };
+                self.outbox
+                    .enqueue(row)
+                    .await
+                    .map_err(ApplicationError::Outbox)?;
             }
         }
+
         Ok(())
     }
 }
@@ -97,6 +101,7 @@ mod time_entry_register_time_entry_tests {
     // - Assert the happy path emits the expected event.
     // - Assert the evolve function produces the registered state.
 
+    use std::sync::Arc;
     use crate::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
     use crate::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
     use crate::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
@@ -132,12 +137,14 @@ mod time_entry_register_time_entry_tests {
     #[tokio::test]
     async fn handle_register_appends_and_enqueues(before_each: BeforeEachReturn) {
         let (stream_id, command, event_store, outbox) = before_each;
-        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let es = Arc::new(event_store);
+        let ob = Arc::new(outbox);
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, es.clone(), ob);
         handler
             .handle(stream_id, command)
             .await
             .expect("Integration test::register_decide > handle failed");
-        let stream = event_store
+        let stream = es
             .load(stream_id)
             .await
             .expect("Integration test::register_decide > event_store load failed");
@@ -148,7 +155,8 @@ mod time_entry_register_time_entry_tests {
     #[tokio::test]
     async fn handle_register_fails_if_time_entry_exists(before_each: BeforeEachReturn) {
         let (stream_id, command, event_store, outbox) = before_each;
-        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
+
         handler
             .handle(stream_id, command.clone())
             .await
@@ -166,7 +174,8 @@ mod time_entry_register_time_entry_tests {
     async fn handle_register_fails_if_event_store_is_offline(before_each: BeforeEachReturn) {
         let (stream_id, command, mut event_store, outbox) = before_each;
         event_store.toggle_offline();
-        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
+
         let handle_result = handler.handle(stream_id, command).await;
         assert!(handle_result.is_err());
         assert_eq!(
@@ -185,8 +194,10 @@ mod time_entry_register_time_entry_tests {
     ) {
         let (stream_id, command, event_store, outbox) = before_each;
         event_store.set_delay_append_ms(10);
-        let handler1 = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
-        let handler2 = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let es = Arc::new(event_store);
+        let ob = Arc::new(outbox);
+        let handler1 = TimeEntryRegisteredCommandHandler::new(TOPIC, es.clone(), ob.clone());
+        let handler2 = TimeEntryRegisteredCommandHandler::new(TOPIC, es, ob);
         let (result1, result2) = join!(
             handler1.handle(stream_id, command.clone()),
             handler2.handle(stream_id, command)
@@ -228,7 +239,7 @@ mod time_entry_register_time_entry_tests {
             .await
             .expect("Integration test::register_decide > enqueue failed");
 
-        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, &event_store, &outbox);
+        let handler = TimeEntryRegisteredCommandHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
         let handle_result = handler.handle(stream_id, command).await;
         assert!(handle_result.is_err());
         assert!(matches!(

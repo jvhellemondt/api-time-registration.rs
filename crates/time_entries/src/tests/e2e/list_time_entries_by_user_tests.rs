@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
 use crate::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
 use crate::adapters::in_memory::in_memory_projections::InMemoryProjections;
@@ -10,15 +11,15 @@ use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuil
 
 #[tokio::test]
 async fn lists_time_entries_by_user() {
-    let store = InMemoryEventStore::<TimeEntryEvent>::new();
-    let outbox = InMemoryDomainOutbox::new();
-    let projections = InMemoryProjections::new();
+    let store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
+    let outbox = Arc::new(InMemoryDomainOutbox::new());
+    let projections = Arc::new(InMemoryProjections::new());
     let projector = Projector {
         name: "time_entry_summary".into(),
-        repository: &projections,
-        watermark_repository: &projections,
+        repository: projections.clone(),
+        watermark_repository: projections.clone(),
     };
-    let handler = TimeEntryRegisteredCommandHandler::new("time-entries", &store, &outbox);
+    let handler = TimeEntryRegisteredCommandHandler::new("time-entries", store.clone(), outbox);
 
     let commands: Vec<_> = [1000, 2000, 1500]
         .into_iter()
