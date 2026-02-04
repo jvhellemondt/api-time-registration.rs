@@ -10,6 +10,9 @@
 use crate::application::projector::repository::{
     TimeEntryProjectionRepository, WatermarkRepository,
 };
+use crate::application::query_handlers::time_entries_queries::{
+    TimeEntryQueries, TimeEntryView,
+};
 use crate::core::time_entry::projector::model::TimeEntryRow;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -61,6 +64,41 @@ impl WatermarkRepository for InMemoryProjections {
             .await
             .insert(name.to_string(), last.to_string());
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl TimeEntryQueries for InMemoryProjections {
+    async fn list_by_user_id(
+        &self,
+        user_id: &str,
+        offset: u64,
+        limit: u64,
+        sort_by_start_time_desc: bool,
+    ) -> anyhow::Result<Vec<TimeEntryView>> {
+        let guard = self.rows.read().await;
+
+        let mut items: Vec<TimeEntryRow> = guard
+            .iter()
+            .filter(|((uid, _), _)| uid == user_id)
+            .map(|(_, row)| row.clone())
+            .collect();
+
+        items.sort_by_key(|r| r.start_time);
+        if sort_by_start_time_desc {
+            items.reverse();
+        }
+
+        let start = offset as usize;
+        let end = start.saturating_add(limit as usize).min(items.len());
+        if start >= items.len() {
+            return Ok(Vec::new());
+        }
+        Ok(items[start..end]
+            .iter()
+            .cloned()
+            .map(TimeEntryView::from)
+            .collect())
     }
 }
 
@@ -141,7 +179,12 @@ pub mod time_entry_in_memory_projections_tests {
         repository.toggle_offline();
         let result = repository.upsert(row).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Projections repository offline"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Projections repository offline")
+        );
     }
 
     #[rstest]
@@ -153,7 +196,12 @@ pub mod time_entry_in_memory_projections_tests {
         repository.toggle_offline();
         let result = repository.set("projector-name", "event-id").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Watermark repository offline"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Watermark repository offline")
+        );
     }
 
     #[rstest]
@@ -165,6 +213,31 @@ pub mod time_entry_in_memory_projections_tests {
         repository.toggle_offline();
         let result = repository.get("projector-name").await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Watermark repository offline"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Watermark repository offline")
+        );
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_list_all_time_entries_stored(
+        before_each: (TimeEntryRegisteredV1, TimeEntryRow, InMemoryProjections),
+    ) {
+        let (event, row, repository) = before_each;
+        repository
+            .upsert(row.clone())
+            .await
+            .expect("InMemoryProjections > upsert failed");
+
+        let time_entry_list = repository
+            .list_by_user_id(&event.user_id, 0, 10, false)
+            .await
+            .unwrap();
+        let view = row.into();
+        assert_eq!(time_entry_list.len(), 1);
+        assert_eq!(time_entry_list[0], view);
     }
 }

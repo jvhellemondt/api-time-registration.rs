@@ -7,8 +7,8 @@
 // - Tests import modules from this crate root to reach the code under test.
 
 pub mod core {
-    pub mod time_entry;
     pub mod ports;
+    pub mod time_entry;
 }
 
 pub mod application {
@@ -16,7 +16,9 @@ pub mod application {
     pub mod command_handlers {
         pub mod register_handler;
     }
-
+    pub mod query_handlers {
+        pub mod time_entries_queries;
+    }
     pub mod projector {
         pub mod repository;
         pub mod runner;
@@ -28,6 +30,9 @@ pub mod adapters {
         pub mod in_memory_domain_outbox;
         pub mod in_memory_event_store;
         pub mod in_memory_projections;
+    }
+    pub mod mappers {
+        pub mod time_entry_row_to_time_entry_view;
     }
 }
 
