@@ -1,0 +1,22 @@
+[package]
+name = "time_entries_api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+async-graphql = "7.2.1"
+async-graphql-axum = "7.2.1"
+tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros"] }
+tower-http = { version = "0.6.8", features = ["trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["fmt", "env-filter"] }
+time_entries = { path = "../time_entries" }
+chrono = "0.4.43"
+anyhow = "1.0.100"
+
+[dependencies.uuid]
+version = "1.20.0"
+features = [
+    "v7",
+]
