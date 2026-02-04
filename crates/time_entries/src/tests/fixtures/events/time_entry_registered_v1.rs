@@ -3,7 +3,7 @@
 // only during tests via include! in src/lib.rs (cfg(test)).
 
 use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
 /// Builder function returning a canonical event instance for tests.
 pub fn make_time_entry_registered_v1_event() -> TimeEntryRegisteredV1 {

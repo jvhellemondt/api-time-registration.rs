@@ -36,7 +36,7 @@ pub fn apply(stream_id: &str, version: i64, event: &TimeEntryEvent) -> Vec<Mutat
 #[cfg(test)]
 mod time_entry_projector_apply_tests {
     use super::*;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::rstest;
 
     #[rstest]

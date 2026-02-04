@@ -106,7 +106,7 @@ impl TimeEntryQueries for InMemoryProjections {
 pub mod time_entry_in_memory_projections_tests {
     use super::*;
     use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
 
     #[fixture]

@@ -39,6 +39,10 @@ pub mod adapters {
 // pub mod shell;
 
 #[cfg(test)]
-pub mod test_support {
+pub mod tests {
     pub mod fixtures;
+
+    pub mod e2e {
+        pub mod list_time_entries_by_user_tests;
+    }
 }

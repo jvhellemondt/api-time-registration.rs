@@ -26,7 +26,7 @@ pub struct TimeEntryRow {
 #[cfg(test)]
 mod time_entry_projector_model_tests {
     use rstest::rstest;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use super::*;
 
     #[rstest]

@@ -23,7 +23,7 @@ pub struct RegisterTimeEntry {
 mod time_entry_registered_event_tests {
     use super::*;
     use rstest::{fixture, rstest};
-    use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+    use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
     #[fixture]
     fn register_command() -> RegisterTimeEntry {

@@ -33,7 +33,7 @@ mod time_entry_registered_event_tests {
     use super::*;
     use rstest::{fixture, rstest};
     use std::fs;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -49,7 +49,7 @@ mod time_entry_registered_event_tests {
 
     #[fixture]
     fn golden_registered_event_json() -> serde_json::Value {
-        let s = fs::read_to_string("./src/test_support/fixtures/events/json/registered_event_v1.json").unwrap();
+        let s = fs::read_to_string("./src/tests/fixtures/events/json/registered_event_v1.json").unwrap();
         serde_json::from_str(&s).unwrap()
     }
 

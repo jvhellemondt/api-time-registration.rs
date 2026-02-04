@@ -105,8 +105,8 @@ mod time_entry_register_time_entry_tests {
     use crate::core::time_entry::decider::register::command::RegisterTimeEntry;
     use crate::core::time_entry::decider::register::decide::DecideError;
     use crate::core::time_entry::event::TimeEntryEvent;
-    use crate::test_support::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
     use tokio::join;
 

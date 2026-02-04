@@ -30,7 +30,7 @@ impl Default for RegisterTimeEntryBuilder {
 #[allow(dead_code)]
 impl RegisterTimeEntryBuilder {
     pub fn new() -> Self {
-        let json_str = fs::read_to_string("./src/test_support/fixtures/commands/json/register_time_entry.json").unwrap();
+        let json_str = fs::read_to_string("./src/tests/fixtures/commands/json/register_time_entry.json").unwrap();
         let dto: RegisterTimeEntryDto = serde_json::from_str(&json_str).unwrap();
 
         Self {

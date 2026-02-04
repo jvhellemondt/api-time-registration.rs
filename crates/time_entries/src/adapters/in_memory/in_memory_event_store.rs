@@ -81,7 +81,7 @@ where
 mod time_entry_in_memory_event_store_tests {
     use super::*;
     use rstest::rstest;
-    use crate::test_support::fixtures::events::domain_event::DomainEvent;
+    use crate::tests::fixtures::events::domain_event::DomainEvent;
 
     #[rstest]
     #[tokio::test]

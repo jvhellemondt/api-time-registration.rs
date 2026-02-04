@@ -65,7 +65,7 @@ mod time_entry_projector_runner_tests {
     use super::*;
     use crate::adapters::in_memory::in_memory_projections::InMemoryProjections;
     use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use crate::test_support::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
 
     #[fixture]
