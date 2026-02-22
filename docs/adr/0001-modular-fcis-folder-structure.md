@@ -231,4 +231,4 @@ The `TechnicalEventStore` port is injected into both inbound and outbound adapte
 
 ### Shell as composition root
 
-`shell/main.rs` is the only place with full visibility of the system. It reads config, instantiates infrastructure implementations, injects them into use case handlers, mounts module routes, registers Kafka handlers, and starts the process. No other layer knows about concrete implementations.
+`shell/main.rs` is the only place with full visibility of the system. It reads config, instantiates infrastructure implementations, injects them into use case handlers, mounts module routes, spawns background workers (`tokio::spawn`), and starts the process. No other layer knows about concrete implementations.
