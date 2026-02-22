@@ -34,9 +34,9 @@ Chosen option 3: **Technical events as a first-class event type written to a ded
 
 * Good, because full observability without a single log statement — every I/O fact is a structured, queryable event
 * Good, because rejection rates, latencies, failure patterns, and adapter health are all derivable from technical events
-* Good, because technical events can trigger automated responses via EventBridge rules — not just passive observation
+* Good, because technical events can feed automated alerting and analysis pipelines — not just passive observation
 * Good, because consistent model throughout the system — domain events, intents, and technical events all follow the same pattern
-* Good, because swapping the technical event store implementation (in-memory → CloudWatch → ClickHouse) requires no changes outside the shell
+* Good, because swapping the technical event store implementation (in-memory → Postgres → stdout) requires no changes outside the shell
 * Bad, because every adapter must be injected with the `TechnicalEventStore` port — more wiring in the shell
 * Bad, because the `TechnicalEvent` enum grows as the system grows — mitigated by grouping variants by boundary
 * Bad, because fire-and-forget write semantics mean a degraded technical event store may silently drop events — acceptable for observability, unacceptable for domain events
@@ -191,12 +191,12 @@ Note that `write` has no return type — writing a technical event is fire-and-f
 ```
 shared/infrastructure/technical_event_store/
   mod.rs             // pub trait TechnicalEventStore
-  in_memory.rs       // for local development and testing
-  cloudwatch.rs      // AWS CloudWatch Events for production
-  clickhouse.rs      // ClickHouse for analytics-heavy workloads
+  in_memory.rs       // default — for development, testing, and simple deployments
+  postgres.rs        // write structured JSON rows to a Postgres table
+  stdout.rs          // write structured JSON to stdout — consumed by log aggregators
 ```
 
-In production on AWS, `CloudWatchTechnicalEventStore` writes structured events to CloudWatch. From there, EventBridge rules can route technical events to analysis pipelines, alerting systems, or dashboards.
+The default `InMemoryTechnicalEventStore` is sufficient for development and testing. In production, `PostgresTechnicalEventStore` writes structured rows queryable by any SQL tool. `StdoutTechnicalEventStore` emits newline-delimited JSON consumed by any log aggregator (Loki, Datadog, etc.).
 
 ## Technical Events vs Domain Events vs Integration Events
 

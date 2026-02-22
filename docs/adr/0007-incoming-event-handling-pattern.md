@@ -209,20 +209,18 @@ Incoming events that trigger decisions go through the full command handler lifec
 
 The fact that the trigger was an event rather than an HTTP request is invisible to the command handler.
 
-## AWS Event Sources
+## Inbound Transport Sources
 
-Common AWS event sources and their corresponding adapter locations:
+Common inbound trigger types and their corresponding adapter locations:
 
-| AWS Source | Adapter Location | Routing Path |
+| Transport | Adapter Location | Routing Path |
 |---|---|---|
-| API Gateway | `inbound/http.rs` | → command handler |
-| SQS | `inbound/sqs.rs` | → command handler |
-| EventBridge | `inbound/eventbridge.rs` | → command handler or projector |
-| SNS | `inbound/sns.rs` | → projector (typically observational) |
-| DynamoDB Stream | `inbound/dynamodb_stream.rs` | → projector |
-| Kinesis | `inbound/kinesis.rs` | → command handler or projector |
+| HTTP (Axum) | `inbound/http.rs` | → command handler |
+| Message queue (RabbitMQ, NATS, Redis Streams) | `inbound/queue.rs` | → command handler |
+| Internal channel (`tokio::mpsc`) | `inbound/channel.rs` | → command handler or projector |
+| Scheduled tick (`tokio::time::interval`) | `inbound/ticker.rs` | → projector |
 
-The Lambda shell entry point for each use case (per ADR-0002) determines which AWS trigger is wired to which inbound adapter.
+The shell entry point for each use case determines which transport is wired to which inbound adapter.
 
 ## Rules
 

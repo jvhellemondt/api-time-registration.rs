@@ -66,19 +66,45 @@ The `id` is generated when the intent is written to the outbox and carried throu
 
 ## Relay Trigger
 
-In production on AWS, the outbox is backed by DynamoDB. A DynamoDB Stream triggers a Lambda for each new outbox record. The Lambda is the relay for that intent type:
+The intent relay runner is a background task spawned by the shell at startup. It polls the intent outbox on a configurable interval and dispatches undelivered records to the matching per-intent relay:
 
-```
-command handler writes OutboxRecord { intent: NotifyUserOfApproval }
-  → DynamoDB Stream emits change event
-  → Lambda trigger: NotifyUserOfApprovalRelay
-      → reads OutboxRecord
-      → translates to Kafka message
-      → publishes to "user-notifications" topic
-      → marks OutboxRecord delivered
+```rust
+// shell/workers/intent_relay_runner.rs
+
+pub struct IntentRelayRunner {
+    outbox: Arc<dyn DomainOutbox>,
+    relays: Vec<Box<dyn IntentRelay>>,
+}
+
+impl IntentRelayRunner {
+    pub async fn run(&self, interval: Duration) {
+        loop {
+            if let Ok(records) = self.outbox.load_undelivered().await {
+                for record in records {
+                    for relay in &self.relays {
+                        if relay.handles(&record.intent) {
+                            relay.relay(record).await;
+                            break;
+                        }
+                    }
+                }
+            }
+            tokio::time::sleep(interval).await;
+        }
+    }
+}
 ```
 
-In local development, a background polling task in `shell/local/main.rs` reads undelivered records on an interval and dispatches to the same relay functions.
+In `shell/main.rs`:
+
+```rust
+tokio::spawn({
+    let runner = intent_relay_runner.clone();
+    async move {
+        runner.run(Duration::from_millis(500)).await;
+    }
+});
+```
 
 ## Per-Intent Relay
 
@@ -220,12 +246,12 @@ The intent relay described in this ADR handles directed intents from the outbox.
 
 They must remain separate relays. Merging them creates a god object that conflates directed communication with broadcast observation.
 
-## Local Development
+## Worker Wiring in main.rs
 
-In `shell/local/main.rs` a background polling task runs all relays on an interval:
+The `IntentRelayRunner` is wired and spawned in `shell/main.rs` alongside all other workers:
 
 ```rust
-// shell/local/main.rs
+// shell/main.rs
 
 let relay_runner = IntentRelayRunner::new(
     intent_outbox.clone(),
@@ -242,47 +268,19 @@ tokio::spawn(async move {
 });
 ```
 
-The `IntentRelayRunner` polls for undelivered records and dispatches each to the matching relay. This mirrors the Lambda trigger behaviour without requiring AWS infrastructure locally.
+The `IntentRelayRunner` polls for undelivered records and dispatches each to the matching relay.
 
-## CDK Stack
+## Infrastructure Examples
 
-Each relay Lambda is defined in the CDK stack alongside the DynamoDB stream trigger:
+The intent outbox port can be backed by any durable store. Common implementations:
 
-```typescript
-// cdk/lib/time_entries_stack.ts
+| Implementation | When to use |
+|---|---|
+| `InMemoryDomainOutbox` | Development, testing, single-process deployments where durability is not required |
+| `PostgresDomainOutbox` | Production — uses advisory locks for safe concurrent polling; records survive process restarts |
+| `RedisDomainOutbox` | Production — uses a Redis list as a queue; fast, at-least-once delivery |
 
-const notifyUserRelay = new RustFunction(this, 'NotifyUserOfApprovalRelay', {
-    bin: 'notify_user_of_approval',
-    environment: {
-        INTENT_OUTBOX_TABLE: intentOutboxTable.tableName,
-        KAFKA_BOOTSTRAP_SERVERS: props.kafkaBootstrapServers,
-        USER_NOTIFICATIONS_TOPIC: 'user-notifications',
-    },
-});
-
-intentOutboxTable.grantStreamRead(notifyUserRelay);
-intentOutboxTable.grantWriteData(notifyUserRelay); // for marking delivered
-
-notifyUserRelay.addEventSource(
-    new DynamoEventSource(intentOutboxTable, {
-        startingPosition: StartingPosition.TRIM_HORIZON,
-        filters: [
-            FilterCriteria.filter({
-                dynamodb: {
-                    NewImage: {
-                        intent_type: { S: FilterRule.isEqual('NotifyUserOfApproval') }
-                    }
-                }
-            })
-        ],
-        retryAttempts: 5,
-        bisectBatchOnError: true,
-        onFailure: new SqsDlq(relayDeadLetterQueue),
-    })
-);
-```
-
-The DynamoDB Stream filter ensures each Lambda only receives records for its intent type — no routing logic needed inside the Lambda itself.
+The shell chooses the implementation. The relay and the handler never know which backing store is used.
 
 ## Rules
 
