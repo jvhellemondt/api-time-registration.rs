@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0009: Event Relay Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -28,6 +30,26 @@ Domain events are stored in the event store as the source of truth for internal 
 ## Decision Outcome
 
 Chosen option 4: **Relay tails the event store, translates to integration events, publishes to a bounded context topic with event type as a header**, because it decouples internal domain schemas from external contracts, preserves ordering per aggregate, supports multiple consumers without relay proliferation, and keeps the integration contract in one place.
+
+### Consequences
+
+* Good, because external services are fully decoupled from internal domain event schemas — the domain can evolve freely without breaking consumers
+* Good, because ordering per aggregate is guaranteed via Kafka partition key — consumers that process one aggregate at a time see events in causal order
+* Good, because schema versioning with parallel publishing allows consumers to migrate at their own pace
+* Good, because one topic per module keeps infrastructure manageable while supporting multiple consumer types via header filtering
+* Good, because the checkpoint ensures no events are lost across restarts or failures
+* Good, because technical events provide full observability of relay health — throughput, lag, failure rates
+* Bad, because parallel publishing during schema migration doubles the publish load for that event type — acceptable for migration windows, which should be short
+* Bad, because the translation function in the relay grows as event types grow — mitigated by keeping each match arm thin and delegating to typed builder functions
+* Bad, because checkpoint management adds operational complexity — the checkpoint table must be backed up and recoverable
+* Bad, because consumers not handling unknown fields in additive changes can break — enforce lenient deserialisation as a consumer contract requirement
+* Bad, because advancing the checkpoint before Kafka acknowledgement in an implementation error would cause lost events — enforce in code review; this ADR serves that purpose
+* Bad, because event relay falling behind under high write load may go unnoticed — monitor consumer lag and DynamoDB Stream iterator age; scale Lambda concurrency if needed
+* Bad, because dead lettered events in the relay DLQ may go unnoticed — set CDK alarms on DLQ depth from day one
+
+### Confirmation
+
+Compliance is confirmed by verifying no external service accesses the domain event store table directly; integration event types carry a version suffix (`V1`, `V2`); the checkpoint is advanced only after Kafka `ack`; CDK alarms exist on the event relay DLQ.
 
 ## Domain Event vs Integration Event
 
@@ -328,27 +350,3 @@ One event relay Lambda per module — unlike intent relays which are one per int
 5. The `idempotency_key` is always the event store position — consumers use it to deduplicate
 6. The event relay handles all event types for a module — it is not split per event type
 7. Technical events are written for every relay attempt, success, failure, and translation error
-
-## Consequences
-
-### Positive
-
-- External services are fully decoupled from internal domain event schemas — the domain can evolve freely without breaking consumers
-- Ordering per aggregate is guaranteed via Kafka partition key — consumers that process one aggregate at a time see events in causal order
-- Schema versioning with parallel publishing allows consumers to migrate at their own pace
-- One topic per module keeps infrastructure manageable while supporting multiple consumer types via header filtering
-- The checkpoint ensures no events are lost across restarts or failures
-- Technical events provide full observability of relay health — throughput, lag, failure rates
-
-### Negative
-
-- Parallel publishing during schema migration doubles the publish load for that event type — acceptable for migration windows, which should be short
-- The translation function in the relay grows as event types grow — mitigated by keeping each match arm thin and delegating to typed builder functions
-- Checkpoint management adds operational complexity — the checkpoint table must be backed up and recoverable
-
-### Risks
-
-- Consumers not handling unknown fields in additive changes — enforce the convention that consumers must use lenient deserialisation (ignore unknown fields) and document this as a consumer contract requirement
-- Checkpoint advancing before Kafka acknowledgement in an implementation error — enforce in code review; the rule must be explicit (this ADR serves that purpose)
-- Event relay falling behind under high write load — monitor consumer lag on the Kafka topic and the DynamoDB Stream iterator age via technical events; scale Lambda concurrency if needed
-- Dead lettered events in the relay DLQ going unnoticed — set CDK alarms on DLQ depth from day one, same as intent relay dead letters

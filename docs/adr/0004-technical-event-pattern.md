@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0004: Technical Event Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -27,6 +29,24 @@ The system needs observability at every I/O boundary — inbound requests, outbo
 ## Decision Outcome
 
 Chosen option 3: **Technical events as a first-class event type written to a dedicated store**, because it makes observability consistent with the rest of the system's event-centric model, produces structured queryable facts rather than text, and enables analysis workflows that can react to operational patterns — not just observe them passively.
+
+### Consequences
+
+* Good, because full observability without a single log statement — every I/O fact is a structured, queryable event
+* Good, because rejection rates, latencies, failure patterns, and adapter health are all derivable from technical events
+* Good, because technical events can trigger automated responses via EventBridge rules — not just passive observation
+* Good, because consistent model throughout the system — domain events, intents, and technical events all follow the same pattern
+* Good, because swapping the technical event store implementation (in-memory → CloudWatch → ClickHouse) requires no changes outside the shell
+* Bad, because every adapter must be injected with the `TechnicalEventStore` port — more wiring in the shell
+* Bad, because the `TechnicalEvent` enum grows as the system grows — mitigated by grouping variants by boundary
+* Bad, because fire-and-forget write semantics mean a degraded technical event store may silently drop events — acceptable for observability, unacceptable for domain events
+* Bad, because developers may add log statements instead of technical events as the system grows — enforce in code review and ADR awareness
+* Bad, because technical event variants can become too granular or too coarse — calibrate around what analysis systems actually query
+* Bad, because the `TechnicalEvent` enum can become a shared dependency causing frequent recompilation — consider splitting by module if compile times become a concern
+
+### Confirmation
+
+Compliance is confirmed by verifying no `log::`, `tracing::`, or `println!` calls exist outside the shell; `TechnicalEventStore::write` is called at every adapter boundary; the technical event store is never written transactionally with domain events.
 
 ## What is a Technical Event
 
@@ -189,25 +209,3 @@ In production on AWS, `CloudWatchTechnicalEventStore` writes structured events t
 | Examples | `TimeEntryApproved` | `TimeEntryApprovedV1` | `CommandAccepted`, `OutboundAdapterFailed` |
 
 These three stores must remain separate. Mixing them conflates domain facts with operational observations and creates schema coupling between internal observability and external integration contracts.
-
-## Consequences
-
-### Positive
-
-- Full observability without a single log statement — every I/O fact is a structured, queryable event
-- Rejection rates, latencies, failure patterns, and adapter health are all derivable from technical events
-- Technical events can trigger automated responses via EventBridge rules — not just passive observation
-- Consistent model throughout the system — domain events, intents, and technical events all follow the same pattern
-- Swapping the technical event store implementation (in-memory → CloudWatch → ClickHouse) requires no changes outside the shell
-
-### Negative
-
-- Every adapter must be injected with the `TechnicalEventStore` port — more wiring in the shell
-- The `TechnicalEvent` enum grows as the system grows — mitigated by grouping variants by boundary
-- Fire-and-forget write semantics mean a degraded technical event store may silently drop events — acceptable for observability, unacceptable for domain events
-
-### Risks
-
-- Developers adding log statements instead of technical events as the system grows — enforce in code review and ADR awareness
-- Technical event variants becoming too granular or too coarse — calibrate around what analysis systems actually query
-- The `TechnicalEvent` enum becoming a shared dependency that causes frequent recompilation — consider splitting by module if compile times become a concern

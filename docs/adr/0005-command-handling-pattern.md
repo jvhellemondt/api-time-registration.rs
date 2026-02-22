@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0005: Command Handling Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -27,6 +29,23 @@ Commands are the primary way state changes in the system. We need a consistent p
 ## Decision Outcome
 
 Chosen option 3: **Thin command handler orchestrating pure decider with injected outbound ports**, because it maintains the functional core's purity, makes the application layer's orchestration role explicit, and keeps domain logic and I/O concerns in clearly separate places.
+
+### Consequences
+
+* Good, because the decider is trivially unit testable — pure function, no mocks needed
+* Good, because command handling is uniform across all use cases — developers follow the same pattern every time
+* Good, because rejection notification is applied consistently by the application layer — no individual handler can forget it
+* Good, because technical events provide a complete audit trail of every command's lifecycle
+* Good, because infrastructure failures are clearly distinguished from domain rejections
+* Bad, because state reconstruction by replaying all events on every command can be slow for aggregates with long histories — mitigate with snapshots when needed
+* Bad, because the command handler is verbose — each handler repeats the same orchestration structure — mitigate with shared helper functions if repetition becomes painful
+* Bad, because developers may put domain logic in the command handler instead of the decider — enforce in code review
+* Bad, because developers may add `InformCallerOfRejection` in the decider — the rule must be documented and enforced (this ADR serves that purpose)
+* Bad, because event store and intent outbox writes are not atomic with each other in all implementations — ensure event store is always written first, intent outbox second
+
+### Confirmation
+
+Compliance is confirmed by code review: decider functions are `fn` (not `async fn`) with no I/O imports; `InformCallerOfRejection` is never returned by a decider; command handlers follow the load → reconstruct → decide → persist → outbox lifecycle without domain conditionals.
 
 ## Command Lifecycle
 
@@ -262,24 +281,3 @@ Note that for HTTP callers, the rejection is communicated both synchronously (4x
 4. The command handler never contains domain rules — if/else on business conditions belongs in the decider
 5. Technical events are written at every meaningful boundary — command received, accepted, rejected, outbound failure
 6. Outbound failures are captured as technical events and returned as infrastructure errors — they do not become domain rejections
-
-## Consequences
-
-### Positive
-
-- The decider is trivially unit testable — pure function, no mocks needed
-- Command handling is uniform across all use cases — developers follow the same pattern every time
-- Rejection notification is applied consistently by the application layer — no individual handler can forget it
-- Technical events provide a complete audit trail of every command's lifecycle
-- Infrastructure failures are clearly distinguished from domain rejections
-
-### Negative
-
-- State reconstruction by replaying all events on every command can be slow for aggregates with long histories — mitigate with snapshots when needed
-- The command handler is verbose — each handler repeats the same orchestration structure — mitigate with shared helper functions in the application layer if repetition becomes painful
-
-### Risks
-
-- Developers putting domain logic in the command handler instead of the decider — enforce in code review
-- Developers adding `InformCallerOfRejection` in the decider — the rule must be documented and enforced (this ADR serves that purpose)
-- Event store and intent outbox writes are not atomic with each other in all implementations — ensure the event store is always written first, intent outbox second, so a failure between the two leaves the system in a recoverable state

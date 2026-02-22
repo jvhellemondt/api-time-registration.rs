@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0007: Incoming Event Handling Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -26,6 +28,23 @@ The system receives events from external services and from its own event store (
 ## Decision Outcome
 
 Chosen option 3: **Event handlers route to either a command handler or a projector based on event type**, because it makes the purpose of each incoming event explicit, preserves the command handling pattern for state-changing decisions, and keeps projection updates on the query side where they belong.
+
+### Consequences
+
+* Good, because the domain is completely isolated from external event schemas — external services can change their schemas without affecting domain logic
+* Good, because the routing path for each incoming event is explicit and discoverable in the inbound adapter
+* Good, because events that trigger decisions benefit from the full command lifecycle — consistent handling, rejection notification, technical events
+* Good, because events that only update projections bypass the command side entirely — no accidental state changes
+* Good, because idempotency is handled consistently at the command level
+* Bad, because every incoming event type requires an explicit translation function in the inbound adapter — more code per event type, but each function is small and focused
+* Bad, because the routing decision in the adapter is a form of coupling between the adapter and the domain's internal structure — acceptable because the adapter is explicitly a boundary concern
+* Bad, because developers may route projection-only events through the command handler for convenience — this is incorrect and must be caught in code review
+* Bad, because external schema changes may break translation functions silently — write translation tests that assert the mapping for known external event payloads
+* Bad, because duplicate event delivery can cause unexpected rejections — ensure `AlreadyProcessed` rejections are handled gracefully and recorded as technical events rather than failures
+
+### Confirmation
+
+Compliance is confirmed by code review: inbound event adapters never pass external schema types to command handlers or projectors; the routing decision (command vs projector) is explicit in the adapter code; translation functions have tests asserting known external payloads map correctly to internal types.
 
 ## Two Routing Paths
 
@@ -213,24 +232,3 @@ The Lambda shell entry point for each use case (per ADR-0002) determines which A
 4. The routing decision (command vs projector) is made explicitly in the adapter — not dynamically dispatched
 5. Idempotency is handled at the command level — duplicate events result in a non-error rejection, not a crash
 6. Technical events are written at the inbound boundary for every incoming event regardless of routing path
-
-## Consequences
-
-### Positive
-
-- The domain is completely isolated from external event schemas — external services can change their schemas without affecting domain logic
-- The routing path for each incoming event is explicit and discoverable in the inbound adapter
-- Events that trigger decisions benefit from the full command lifecycle — consistent handling, rejection notification, technical events
-- Events that only update projections bypass the command side entirely — no accidental state changes
-- Idempotency is handled consistently at the command level
-
-### Negative
-
-- Every incoming event type requires an explicit translation function in the inbound adapter — more code per event type, but each function is small and focused
-- The routing decision in the adapter is a form of coupling between the adapter and the domain's internal structure — acceptable because the adapter is explicitly a boundary concern
-
-### Risks
-
-- Developers routing projection-only events through the command handler for convenience — this is incorrect and must be caught in code review; projections are a query concern and must not go through the command side
-- External schema changes breaking translation functions silently — write translation tests that assert the mapping for known external event payloads
-- Duplicate event delivery causing unexpected rejections that are surfaced as errors to the caller — ensure `AlreadyProcessed` rejections are handled gracefully in the inbound adapter and logged as technical events rather than failures

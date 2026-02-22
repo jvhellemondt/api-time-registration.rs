@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0008: Intent Relay Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -27,6 +29,23 @@ ADR-0003 established that intents are written to an outbox for durable, at-least
 ## Decision Outcome
 
 Chosen option 4: **Relay triggered by outbox store stream, one Lambda per intent type**, because it maps naturally to the vertical slice structure established in ADR-0001 and ADR-0002, keeps each relay function small and focused, avoids a god object, and is independently deployable and scalable per intent type.
+
+### Consequences
+
+* Good, because each relay is small, focused, and independently deployable — adding a new intent type means adding a new relay, nothing else changes
+* Good, because the relay is the only place that knows about brokers, topics, and external contracts — domain and application layers are completely isolated from infrastructure topology
+* Good, because idempotency keys carried through to external systems make duplicate delivery safe
+* Good, because dead letter handling ensures no intent is silently lost
+* Good, because technical events provide full observability of relay health — latency, failure rates, dead letter volume
+* Bad, because one Lambda per relay means more infrastructure to manage in CDK — offset by the predictable one-to-one mapping with intent types
+* Bad, because the local relay runner adds complexity to `shell/local/main.rs` — mitigated by keeping the runner generic and relay implementations thin
+* Bad, because external systems that do not support idempotency keys may process duplicate intents on relay retry — document which external systems are idempotent and which are not
+* Bad, because dead letter volume may grow unnoticed — ensure CDK alarms are set on dead letter queue depth from day one
+* Bad, because DynamoDB Stream filter syntax must be tested thoroughly — incorrect filters may cause a relay Lambda to miss records or receive wrong ones
+
+### Confirmation
+
+Compliance is confirmed by verifying each relay file handles exactly one intent type; no broker or topic string appears outside relay files; `delivered_at` is set only after external system acknowledgement; dead letter alarms are defined in the CDK stack.
 
 ## Outbox Structure
 
@@ -274,24 +293,3 @@ The DynamoDB Stream filter ensures each Lambda only receives records for its int
 5. Failed deliveries are recorded on the outbox record with error and attempt count — never silently dropped
 6. Dead lettered intents require manual intervention — the relay never automatically retries beyond the configured attempt limit
 7. Technical events are written for every relay attempt, success and failure
-
-## Consequences
-
-### Positive
-
-- Each relay is small, focused, and independently deployable — adding a new intent type means adding a new relay, nothing else changes
-- The relay is the only place that knows about brokers, topics, and external contracts — domain and application layers are completely isolated from infrastructure topology
-- Idempotency keys carried through to external systems make duplicate delivery safe
-- Dead letter handling ensures no intent is silently lost
-- Technical events provide full observability of relay health — latency, failure rates, dead letter volume
-
-### Negative
-
-- One Lambda per relay means more infrastructure to manage in CDK — offset by the predictable one-to-one mapping with intent types
-- The local relay runner adds complexity to `shell/local/main.rs` — mitigated by keeping the runner generic and relay implementations thin
-
-### Risks
-
-- External systems that do not support idempotency keys may process duplicate intents on relay retry — document which external systems are idempotent and which are not; consider adding deduplication at the relay level for non-idempotent targets
-- Dead letter volume growing unnoticed — ensure CDK alarms are set on dead letter queue depth from day one
-- DynamoDB Stream filter syntax limiting relay trigger precision — test filters thoroughly before deploying to production

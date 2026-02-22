@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0002: AWS Lambda and CDK as Inbound Adapter Entry Points
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -27,6 +29,25 @@ ADR-0001 established a modular FCIS folder structure with a `shell/` as the comp
 ## Decision Outcome
 
 Chosen option 2: **One Lambda per use case, bootstrapped from a centralised `shell/lambdas/`**, because it maps naturally to the vertical slice structure, keeps deployment concerns out of use cases, and preserves the shell as the single place responsible for wiring — just spread across multiple entry points instead of one.
+
+### Consequences
+
+* Good, because use cases have zero knowledge of Lambda, CDK, or AWS — they remain deployment-agnostic
+* Good, because one Lambda per use case maps naturally to the vertical slice structure — independent scaling and deployment per use case at no architectural cost
+* Good, because shell remains the single place responsible for wiring — just distributed across multiple entry points
+* Good, because CDK mirrors the use case structure making infrastructure changes predictable and navigable
+* Good, because local development reuses the same inbound adapters with in-memory infrastructure — no mocking needed
+* Good, because cold start performance is optimised per Lambda — each binary contains only what one use case needs
+* Bad, because more Lambda functions to manage in CDK — offset by the predictable one-to-one mapping with use cases
+* Bad, because config must be available as environment variables per Lambda — CDK is responsible for injecting the right values per function
+* Bad, because bootstrap code is repeated across Lambda entry points — kept thin by convention, but requires discipline
+* Bad, because shared infrastructure resources (DynamoDB tables, SQS queues) must be defined once and referenced by all Lambdas — CDK stack organisation must reflect this to avoid duplication
+* Bad, because cold starts may be a concern for latency-sensitive use cases — consider provisioned concurrency for critical paths
+* Bad, because if a use case needs both an API Gateway trigger and an SQS trigger, it needs two Lambda entry points in `shell/lambdas/` — this is correct but must be documented clearly to avoid confusion
+
+### Confirmation
+
+Compliance is confirmed by verifying that no use case source file imports `lambda_runtime`, `aws_lambda_events`, or any CDK type; all Lambda entry points live under `shell/lambdas/`; and `cdk/` is outside the `src/` tree.
 
 ## AWS Inbound Trigger Mapping
 
@@ -176,29 +197,6 @@ axum::serve(listener, app).await;
 ```
 
 The same inbound adapters (`http.rs`, `sqs.rs`) work in both Lambda and local contexts because they depend on the handler through its port, not on the runtime.
-
-## Consequences
-
-### Positive
-
-- Use cases have zero knowledge of Lambda, CDK, or AWS — they remain deployment-agnostic
-- One Lambda per use case maps naturally to the vertical slice structure — independent scaling and deployment per use case at no architectural cost
-- Shell remains the single place responsible for wiring — just distributed across multiple entry points
-- CDK mirrors the use case structure making infrastructure changes predictable and navigable
-- Local development reuses the same inbound adapters with in-memory infrastructure — no mocking needed
-- Cold start performance is optimised per Lambda — each binary contains only what one use case needs
-
-### Negative
-
-- More Lambda functions to manage in CDK — offset by the predictable one-to-one mapping with use cases
-- Config must be available as environment variables per Lambda — CDK is responsible for injecting the right values per function
-- Bootstrap code is repeated across Lambda entry points — kept thin by convention, but requires discipline
-
-### Risks
-
-- Shared infrastructure resources (DynamoDB tables, SQS queues) must be defined once and referenced by all Lambdas — CDK stack organisation must reflect this to avoid duplication
-- Cold starts may be a concern for latency-sensitive use cases — consider provisioned concurrency for critical paths
-- If a use case needs both an API Gateway trigger and an SQS trigger, it needs two Lambda entry points in `shell/lambdas/` pointing at different inbound adapters — this is correct but must be documented clearly to avoid confusion
 
 ## Relation to ADR-0001
 

@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0006: Query Handling Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -26,6 +28,24 @@ Queries read state without changing it. We need a consistent pattern for how que
 ## Decision Outcome
 
 Chosen option 3: **Query handlers read from use case-specific projections maintained by a projector**, because it keeps projections focused and owned by their use case, avoids replaying events on every query, and maintains clear separation between the command and query sides.
+
+### Consequences
+
+* Good, because query handlers are fast — they read from a pre-built projection, no event replay on each request
+* Good, because each projection is shaped exactly for its query — no general-purpose read model that serves everything poorly
+* Good, because the command and query sides are completely isolated — neither can accidentally affect the other
+* Good, because projections can be rebuilt at any time by replaying events through the projector from the beginning
+* Good, because adding a new query use case means adding a new projection and handler — the event store is untouched
+* Bad, because eventual consistency means queries may lag slightly behind the latest command — must be communicated to API consumers
+* Bad, because each query use case runs its own projector — multiple projectors reading the same event stream adds load to the event store — mitigate with a shared event subscription that fans out
+* Bad, because projection rebuild (full replay) can be slow for long event histories — plan for this operationally
+* Bad, because developers may query the event store directly from a query handler for convenience — enforce the rule that query handlers only touch the projection store
+* Bad, because projection schema migration when events change shape requires a full rebuild — the projection is always disposable
+* Bad, because a projector falling significantly behind may go unnoticed — monitor via technical events and alert on threshold breaches
+
+### Confirmation
+
+Compliance is confirmed by code review: query handlers import only from the projection store port, never from the event store or any command-side type; projectors run as background tasks started by the shell, never called inline from a query handler.
 
 ## Projection
 
@@ -239,25 +259,3 @@ Use case-specific projections call these shared mappings rather than duplicating
 4. The projector runs asynchronously — it is never called inline during a query
 5. Projection state is always read from the projection store — never rebuilt from raw events on each request
 6. Shared event-to-model mappings live in `core/projections.rs` — use case projections call them
-
-## Consequences
-
-### Positive
-
-- Query handlers are fast — they read from a pre-built projection, no event replay on each request
-- Each projection is shaped exactly for its query — no general-purpose read model that serves everything poorly
-- The command and query sides are completely isolated — neither can accidentally affect the other
-- Projections can be rebuilt at any time by replaying events through the projector from the beginning
-- Adding a new query use case means adding a new projection and handler — the event store is untouched
-
-### Negative
-
-- Eventual consistency means queries may lag slightly behind the latest command — acceptable for most use cases, must be communicated to API consumers
-- Each query use case runs its own projector — multiple projectors reading the same event stream adds load to the event store — mitigate with a shared event subscription that fans out to all projectors
-- Projection rebuild (full replay) can be slow for long event histories — plan for this operationally
-
-### Risks
-
-- Developers querying the event store directly from a query handler for convenience — enforce the rule that query handlers only touch the projection store
-- Projection schema migration when events change shape — handled by rebuilding the projection from the event store; the projection is always disposable
-- Projector falling significantly behind — monitor via technical events (`ProjectionUpdateCompleted` lag) and alert on threshold breaches

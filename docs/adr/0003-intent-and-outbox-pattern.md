@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0003: Intent and Outbox Pattern
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -26,6 +28,22 @@ When a command is accepted or rejected, the system may need to communicate outco
 ## Decision Outcome
 
 Chosen option 3: **Intent as a domain type, translated to infrastructure in the relay**, because it keeps domain vocabulary in the domain, infrastructure vocabulary in the adapters, and makes the system's communication contracts explicit and readable without scattering broker concerns throughout the codebase.
+
+### Consequences
+
+* Good, because domain code expresses communication intent in business terms — readable and meaningful
+* Good, because infrastructure details (brokers, topics, schemas) are contained entirely in the relay
+* Good, because rejection notification is handled uniformly by the application layer — no individual decider needs to remember it
+* Good, because the outbox guarantees delivery without the domain knowing about reliability mechanisms
+* Good, because adding a new intent means adding a variant to the enum and a match arm in the relay — nothing else changes
+* Bad, because the intent relay's match arm grows as intents grow — mitigated by keeping each arm thin and delegating to typed message builders
+* Bad, because the outbox requires a polling mechanism or change stream — operational concern owned by the relay infrastructure
+* Bad, because conflating domain intents with application-layer intents in `core/intents.rs` is a risk — keep the rule clear: only intents that are domain consequences of a decision belong in core; cross-cutting concerns like rejection notification are added by the handler
+* Bad, because intent relay can become a god object as the system grows — consider splitting into domain-specific relays if the match arm becomes unmanageable
+
+### Confirmation
+
+Compliance is confirmed by code review: decider functions never return `Intent::InformCallerOfRejection`; all broker/topic knowledge is contained in relay files; intent types in `core/intents.rs` are only those that are consequences of domain decisions.
 
 ## Intent as a Domain Concept
 
@@ -135,23 +153,3 @@ The intent outbox and the domain event store feed two separate relays with diffe
 | Consumer | Specific external systems | Any interested service |
 
 They must not be merged. Mixing directed intents with broadcast events in the same relay creates a god object that knows both what the domain decided and who needs to be told, conflating two distinct concerns.
-
-## Consequences
-
-### Positive
-
-- Domain code expresses communication intent in business terms — readable and meaningful
-- Infrastructure details (brokers, topics, schemas) are contained entirely in the relay
-- Rejection notification is handled uniformly by the application layer — no individual decider needs to remember it
-- The outbox guarantees delivery without the domain knowing about reliability mechanisms
-- Adding a new intent means adding a variant to the enum and a match arm in the relay — nothing else changes
-
-### Negative
-
-- The intent relay's match arm grows as intents grow — mitigated by keeping each arm thin and delegating to typed message builders
-- The outbox requires a polling mechanism or change stream — operational concern owned by the relay infrastructure
-
-### Risks
-
-- Conflating domain intents with application-layer intents in `core/intents.rs` — keep the rule clear: only intents that are domain consequences of a decision belong in core; cross-cutting concerns like rejection notification are added by the handler
-- Intent relay becoming a god object as the system grows — consider splitting into domain-specific relays (one per bounded context) if the match arm becomes unmanageable

@@ -1,8 +1,10 @@
+---
+status: accepted
+date: 2026-02-22
+decision-makers: []
+---
+
 # ADR-0001: Modular Functional Core Imperative Shell Folder Structure
-
-## Status
-
-Accepted
 
 ## Context and Problem Statement
 
@@ -34,6 +36,26 @@ We need a folder structure for a Rust API that:
 ## Decision Outcome
 
 Chosen option 3: **Vertical slices with shared kernel and modular boundaries**, because it balances purity of the functional core, navigability of use cases, and explicit separation of shared infrastructure without collapsing into a god object or over-splitting into too many crates.
+
+### Consequences
+
+* Good, because pure core is trivially testable without mocks
+* Good, because each use case is self-contained and easy to locate, modify, or delete
+* Good, because adding a new use case means adding a new folder — nothing else changes
+* Good, because adding a new transport means adding a new inbound adapter — the handler is untouched
+* Good, because outbound implementations can be swapped in the shell without touching any other layer
+* Good, because technical events provide full observability without log statements
+* Good, because the intent model keeps domain communication explicit and infrastructure-agnostic
+* Bad, because more folders than a flat layered structure — navigation requires understanding the hierarchy
+* Bad, because the `TechnicalEventStore` cross-cuts inbound and outbound — requires discipline to keep it the only exception
+* Bad, because config at multiple levels (bounded context, module) requires care to avoid duplication
+* Bad, because the distinction between module-level intents and use case-level rejection intents requires consistent application by developers
+* Bad, because `shared/` can grow into a dumping ground if the rule "only what two or more modules need" is not enforced
+* Bad, because module `mod.rs` public API must be kept minimal — leaking internal types couples the shell to module internals
+
+### Confirmation
+
+Compliance is confirmed by code review: `core/` contains no `async fn` or I/O imports; inbound adapters live inside their use case folder; outbound adapters live under `adapters/outbound/` at module level; the shell is the only place that constructs concrete infrastructure implementations.
 
 ## Folder Structure
 
@@ -210,27 +232,3 @@ The `TechnicalEventStore` port is injected into both inbound and outbound adapte
 ### Shell as composition root
 
 `shell/main.rs` is the only place with full visibility of the system. It reads config, instantiates infrastructure implementations, injects them into use case handlers, mounts module routes, registers Kafka handlers, and starts the process. No other layer knows about concrete implementations.
-
-## Consequences
-
-### Positive
-
-- Pure core is trivially testable without mocks
-- Each use case is self-contained and easy to locate, modify, or delete
-- Adding a new use case means adding a new folder — nothing else changes
-- Adding a new transport means adding a new inbound adapter — the handler is untouched
-- Outbound implementations can be swapped in the shell without touching any other layer
-- Technical events provide full observability without log statements
-- The intent model keeps domain communication explicit and infrastructure-agnostic
-
-### Negative
-
-- More folders than a flat layered structure — navigation requires understanding the hierarchy
-- The `TechnicalEventStore` cross-cuts inbound and outbound — requires discipline to keep it the only exception
-- Config at multiple levels (bounded context, module) requires care to avoid duplication
-- The distinction between module-level intents and use case-level rejection intents requires consistent application by developers
-
-### Risks
-
-- `shared/` can grow into a dumping ground if the rule "only what two or more modules need" is not enforced
-- Module `mod.rs` public API must be kept minimal — leaking internal types couples the shell to module internals
