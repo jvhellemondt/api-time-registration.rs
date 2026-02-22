@@ -1,88 +1,110 @@
 # ADR-0000: MADR Template for ADR
 
-## Status
+---
+status: accepted
 
-Accepted
+date: 2026-02-22
+
+decision-makers: []
+---
 
 ---
 
 ## Template
 
 ```markdown
-# ADR-XXXX: Title
+---
+status: "{proposed | rejected | accepted | deprecated | superseded by ADR-XXXX}"
+date: {YYYY-MM-DD}
+decision-makers: {list everyone involved in the decision}
+consulted: {list everyone whose opinions are sought}   <!-- optional -->
+informed: {list everyone kept up-to-date}              <!-- optional -->
+---
 
-## Status
-
-Accepted | Proposed | Deprecated | Superseded by ADR-XXXX
+# ADR-XXXX: {short title}
 
 ## Context and Problem Statement
 
-What problem are we solving and why does it need a decision?
+{Describe the context and problem. Two to three sentences, or a question.}
 
 ## Decision Drivers
 
-- Bullet list of forces, constraints, and goals that shaped the decision
+* {driver 1}
+* {driver 2}
 
 ## Considered Options
 
-1. Option A
-2. Option B
-3. Option C
+1. {option 1}
+2. {option 2}
+3. {option 3}
 
 ## Decision Outcome
 
-Chosen option N: **Name**, because [brief justification].
+Chosen option: "{option 1}", because {justification}.
 
-## [Additional sections as needed]
+### Consequences
 
-Rationale, folder structure, sequence flows, etc. Use headings to organise.
+* Good, because {positive consequence}
+* Bad, because {negative consequence}
+* Neutral, because {neutral consequence}
+
+### Confirmation
+
+{How can compliance with this decision be confirmed? Code review, test, ArchUnit rule, etc.}
+
+## Pros and Cons of the Options
+
+### {option 1}
+
+* Good, because {argument a}
+* Neutral, because {argument b}
+* Bad, because {argument c}
+
+### {option 2}
+
+* Good, because {argument a}
+* Neutral, because {argument b}
+* Bad, because {argument c}
 
 ## Diagram
 
 \`\`\`mermaid
 // Only include if it genuinely clarifies a flow or structure.
-// Good candidates: command lifecycle sequence, state machine, folder hierarchy,
-// relay trigger chain. Skip for simple decisions.
+// Good candidates: command lifecycle sequence, state machine, relay trigger chain.
 \`\`\`
 
-## Consequences
+## More Information
 
-### Positive
-
-- ...
-
-### Negative
-
-- ...
-
-### Risks
-
-- ...
+{Additional evidence, links to related ADRs, resources, or notes on when to revisit.}
 ```
 
 ---
 
 ## Rules
 
-1. **File naming.** Use `NNNN-kebab-case-title.md` in `docs/adr/`. Increment the number from the last ADR.
+1. **File naming.** Use `NNNN-kebab-case-title.md` in `docs/adr/`. Increment from the last ADR.
 
-2. **Status values.** Use one of: `Accepted`, `Proposed`, `Deprecated`, `Superseded by ADR-XXXX`.
+2. **Frontmatter.** Always set `status` and `date`. `consulted` and `informed` are optional.
 
-3. **Context and Problem Statement.** Describe the situation and why a decision is needed. Do not mix in the decision itself.
+3. **Status values.** Use one of: `proposed`, `rejected`, `accepted`, `deprecated`, `superseded by ADR-XXXX`.
 
-4. **Considered Options.** List at least two. If only one option was realistic, explain why alternatives were ruled out quickly.
+4. **Context and Problem Statement.** Describe the situation and why a decision is needed. Do not include the decision itself.
 
-5. **Decision Outcome.** State the chosen option and the key reason. Keep it to one sentence if possible.
+5. **Considered Options.** List at least two. If only one was realistic, explain why alternatives were ruled out quickly.
 
-6. **Consequences.** Always include Positive, Negative, and Risks subsections, even if brief.
+6. **Decision Outcome.** State the chosen option and key reason in one sentence.
 
-7. **Code examples.** Use Rust (`.rs`) when illustrating structure or patterns.
+7. **Consequences.** Use `Good, because` / `Bad, because` / `Neutral, because` bullets. At least one Good and one Bad.
 
-8. **Mermaid diagrams.** Add a `## Diagram` section only when it genuinely clarifies a flow or structure — command lifecycle sequences, state machines, relay trigger chains, folder hierarchies. Skip for simple decisions. Verify syntax is valid (no missing `end`, mismatched arrows, or unclosed blocks) before finalising.
+8. **Pros and Cons of the Options.** Weigh each option individually. Use the same Good/Bad/Neutral pattern.
 
-9. **Architecture patterns.** Where relevant, name the patterns the decision embodies: FCIS, vertical slices, ports and adapters, event sourcing, CQRS, outbox, saga.
+9. **Mermaid diagrams.** Add a `## Diagram` section only when it genuinely clarifies a flow — command lifecycle sequences, state machines, relay trigger chains. Skip for simple decisions. Verify syntax is valid before finalising.
 
-10. **Update the index.** Add the new ADR to the table in `docs/adr/architecture-summary.md`.
+10. **Code examples.** Use Rust (`.rs`) when illustrating structure or patterns.
+
+11. **Architecture patterns.** Where relevant, name the patterns the decision embodies: FCIS, vertical slices, ports and adapters, event sourcing, CQRS, outbox, saga.
+
+12. **Update the index.** Add the new ADR to the table in `docs/adr/architecture-summary.md`.
 
 ---
 
@@ -90,10 +112,11 @@ Rationale, folder structure, sequence flows, etc. Use headings to organise.
 
 Before finalising an ADR:
 
-- [ ] Status is set
-- [ ] At least two options are listed
-- [ ] Decision Outcome names the chosen option and gives a reason
-- [ ] Consequences covers positive, negative, and risks
-- [ ] Mermaid diagram syntax is valid, or section is omitted
+- [ ] Frontmatter is complete (status, date, decision-makers)
+- [ ] At least two options listed in Considered Options
+- [ ] Decision Outcome names the chosen option with justification
+- [ ] Consequences has at least one Good and one Bad bullet
+- [ ] Pros and Cons weighs each option
+- [ ] Mermaid syntax is valid, or Diagram section is omitted
 - [ ] Entry added to the ADR index in `architecture-summary.md`
-- [ ] Any cross-references to other ADRs use the `ADR-XXXX` format
+- [ ] Cross-references to other ADRs use the `ADR-XXXX` format
