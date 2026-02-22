@@ -1,4 +1,4 @@
-# Architecture Summary: Modular FCIS with Event Sourcing on AWS
+# Architecture Summary: Modular FCIS with Event Sourcing
 
 ## Architectural Philosophy
 
@@ -46,7 +46,7 @@ Every command follows the same lifecycle without exception. See **ADR-0005**.
 
 The inbound adapter translates the transport payload into a domain command and calls the command handler. The handler loads past events from the event store, reconstructs current state by folding them through evolve, and calls the pure decider. If the decision is Accepted, the handler persists events and writes domain intents to the outbox. If the decision is Rejected, the handler writes an InformCallerOfRejection intent to the outbox as a cross-cutting application policy. Technical events are written at every meaningful boundary throughout. The result is returned to the inbound adapter which translates it to the appropriate transport response.
 
-For HTTP callers, rejection is communicated both synchronously as a 4xx response and asynchronously via the outbox through to the Kafka results topic. For Kafka and SQS callers there is no synchronous response — only the async notification via outbox.
+For HTTP callers, rejection is communicated both synchronously as a 4xx response and asynchronously via the outbox through to the Kafka results topic. For event-driven callers (message queue, internal channel) there is no synchronous response — only the async notification via outbox.
 
 ---
 
@@ -62,7 +62,7 @@ Projections are built and maintained by a projector that tails the event store a
 
 ## Incoming Event Handling Pattern
 
-Incoming events from SQS, EventBridge, Kafka, or SNS are just another inbound trigger. See **ADR-0007**.
+Incoming events from message queues, internal channels, or HTTP are just another inbound trigger. See **ADR-0007**.
 
 The inbound event adapter translates the external schema into an internal type — either a command or a domain event. External schemas never leak past the adapter. If the event triggers a decision it is translated to a command and goes through the full command lifecycle. If it only updates a read model it is fed directly to the projector. The routing decision is explicit in the adapter, not dynamically dispatched. Idempotency is handled at the command level — duplicate events result in a non-error rejection.
 
@@ -80,17 +80,17 @@ The outbox provides at-least-once delivery. Intents are written atomically with 
 
 ## Intent Relay Pattern
 
-One relay per intent type, each deployed as a Lambda triggered by a DynamoDB Stream on the intent outbox table. See **ADR-0008**.
+One relay per intent type. The intent relay runner is a background polling task spawned at startup. See **ADR-0008**.
 
-When a new outbox record is written, the stream triggers the matching relay Lambda. The relay translates the domain intent into the appropriate infrastructure message, delivers it to the external system, marks the record delivered, and writes technical events throughout. Retry uses exponential backoff. After a configured number of attempts the record is dead lettered for manual intervention. The outbox record ID is carried to the external system as an idempotency key.
+When the runner finds an undelivered outbox record, it dispatches to the matching relay. The relay translates the domain intent into the appropriate infrastructure message, delivers it to the external system, marks the record delivered, and writes technical events throughout. Retry uses exponential backoff. After a configured number of attempts the record is dead lettered for manual intervention. The outbox record ID is carried to the external system as an idempotency key.
 
 ---
 
 ## Event Relay Pattern
 
-One relay per module, deployed as a Lambda triggered by a DynamoDB Stream on the event store table. See **ADR-0009**.
+One relay per module. The event relay runner is a background polling task that tails the event store from a checkpoint position. See **ADR-0009**.
 
-When a new domain event is written, the stream triggers the event relay Lambda. The relay translates the domain event into a versioned integration event and publishes it to the module's bounded context Kafka topic, using the aggregate ID as the message key to preserve ordering per aggregate. The event type and version are carried as message headers so consumers can filter. The checkpoint advances only after Kafka acknowledgement — never before. Breaking schema changes use parallel versioned publishing during a migration window. External services never read the domain event store directly.
+The runner polls for new events and dispatches each to the event relay. The relay translates the domain event into a versioned integration event and publishes it to the module's bounded context Kafka topic, using the aggregate ID as the message key to preserve ordering per aggregate. The event type and version are carried as message headers so consumers can filter. The checkpoint advances only after Kafka acknowledgement — never before. Breaking schema changes use parallel versioned publishing during a migration window. External services never read the domain event store directly.
 
 ---
 
@@ -120,13 +120,11 @@ Outbound adapters are named by function and shared across use cases within a mod
 
 ---
 
-## AWS Lambda and CDK
+## Runtime Model
 
-Each use case maps to one Lambda entry point in the shell. Each intent relay maps to one Lambda. Each module has one event relay Lambda. See **ADR-0002**.
+A single long-running Rust process. `shell/main.rs` is the composition root. See **ADR-0002**.
 
-The Lambda entry point is the shell for that use case — it reads config from environment variables, instantiates infrastructure implementations, wires them together, and calls the inbound adapter. The use case itself has no knowledge of Lambda or any deployment concern.
-
-CDK mirrors the use case structure with one stack per module. DynamoDB Stream filters route events to the correct relay Lambda without any routing logic inside the Lambda itself.
+The shell reads config from environment variables, instantiates infrastructure implementations, wires them into use case handlers, spawns background workers via `tokio::spawn`, and starts the HTTP server. Use cases have no knowledge of the runtime model or any deployment concern. The same binary runs locally and in production.
 
 ---
 
@@ -147,7 +145,7 @@ CDK mirrors the use case structure with one stack per module. DynamoDB Stream fi
 | ADR | Title |
 |---|---|
 | ADR-0001 | Modular FCIS folder structure and rationale |
-| ADR-0002 | AWS Lambda and CDK as inbound adapter entry points |
+| ADR-0002 | Long-running process and tokio runtime model |
 | ADR-0003 | Intent and outbox pattern |
 | ADR-0004 | Technical event pattern |
 | ADR-0005 | Command handling pattern |
@@ -164,13 +162,13 @@ The following were discussed or identified as gaps without a formal ADR.
 
 **Projector runner** — how the projector tails the event store, checkpoint management, and rebuild strategy.
 
-**Event store table design** — DynamoDB partition key strategy, optimistic concurrency control, sort key design.
+**Event store table design** — partition key strategy, optimistic concurrency control, schema design.
 
 **State and evolve as a formal pattern** — pure functional state reconstruction as a standalone ADR.
 
 **Snapshot pattern** — mitigation for slow state reconstruction on aggregates with long event histories.
 
-**Correlation and causation IDs** — how trace IDs flow through commands, events, intents, and relay messages across Lambdas.
+**Correlation and causation IDs** — how trace IDs flow through commands, events, intents, and relay messages across workers and services.
 
 **Local development setup** — full wiring of the in-memory stack and how developers run the system locally.
 

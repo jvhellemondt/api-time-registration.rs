@@ -192,7 +192,7 @@ If the external schema changes, only the inbound adapter changes. Domain logic, 
 
 ## Idempotency
 
-Incoming events may be delivered more than once (at-least-once delivery from SQS, EventBridge, Kafka). Command handlers must be idempotent:
+Incoming events may be delivered more than once (at-least-once delivery from message queues, Kafka, internal channels). Command handlers must be idempotent:
 
 - If the event store already contains the events that would result from a command, the decider should return a rejection with `RejectionReason::AlreadyProcessed` — this is not an error, it is expected
 - The inbound adapter should not retry on rejection — it should ack and move on

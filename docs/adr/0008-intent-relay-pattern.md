@@ -24,11 +24,11 @@ ADR-0003 established that intents are written to an outbox for durable, at-least
 1. Command handler publishes directly to Kafka after persisting events — no relay
 2. Single relay process polling the outbox and routing all intents
 3. Per-intent-type relay functions, each responsible for one intent type
-4. Relay triggered by outbox store stream, one Lambda per intent type
+4. Per-intent-type relay, each run as a background polling task via `tokio::spawn`
 
 ## Decision Outcome
 
-Chosen option 4: **Relay triggered by outbox store stream, one Lambda per intent type**, because it maps naturally to the vertical slice structure established in ADR-0001 and ADR-0002, keeps each relay function small and focused, avoids a god object, and is independently deployable and scalable per intent type.
+Chosen option 4: **Per-intent-type relay, each run as a background polling task**, because it maps naturally to the vertical slice structure established in ADR-0001 and ADR-0002, keeps each relay function small and focused, avoids a god object, and is independently testable per intent type.
 
 ### Consequences
 
@@ -37,15 +37,14 @@ Chosen option 4: **Relay triggered by outbox store stream, one Lambda per intent
 * Good, because idempotency keys carried through to external systems make duplicate delivery safe
 * Good, because dead letter handling ensures no intent is silently lost
 * Good, because technical events provide full observability of relay health — latency, failure rates, dead letter volume
-* Bad, because one Lambda per relay means more infrastructure to manage in CDK — offset by the predictable one-to-one mapping with intent types
-* Bad, because the local relay runner adds complexity to `shell/local/main.rs` — mitigated by keeping the runner generic and relay implementations thin
+* Bad, because one relay per intent type means more relay structs to register in `shell/main.rs` — offset by the predictable one-to-one mapping with intent types
+* Bad, because the relay runner adds complexity to `shell/main.rs` — mitigated by keeping the runner generic and relay implementations thin
 * Bad, because external systems that do not support idempotency keys may process duplicate intents on relay retry — document which external systems are idempotent and which are not
-* Bad, because dead letter volume may grow unnoticed — ensure CDK alarms are set on dead letter queue depth from day one
-* Bad, because DynamoDB Stream filter syntax must be tested thoroughly — incorrect filters may cause a relay Lambda to miss records or receive wrong ones
+* Bad, because dead letter volume may grow unnoticed — set up alerting on dead letter store depth from day one
 
 ### Confirmation
 
-Compliance is confirmed by verifying each relay file handles exactly one intent type; no broker or topic string appears outside relay files; `delivered_at` is set only after external system acknowledgement; dead letter alarms are defined in the CDK stack.
+Compliance is confirmed by verifying each relay file handles exactly one intent type; no broker or topic string appears outside relay files; `delivered_at` is set only after external system acknowledgement; alerting exists on the dead letter store depth.
 
 ## Outbox Structure
 
@@ -188,17 +187,10 @@ modules/
           sync_to_payroll_relay.rs
 
 shell/
-  lambdas/
-    time_entries/
-      relays/
-        notify_user_of_approval.rs    // Lambda entry point for this relay
-        inform_caller_of_rejection.rs
-        sync_to_payroll.rs
-  local/
-    main.rs                           // starts background polling task
+  main.rs                             // wires and spawns the IntentRelayRunner
+  workers/
+    intent_relay_runner.rs            // polls the outbox and dispatches to per-intent relays
 ```
-
-Each relay Lambda entry point follows the same bootstrap pattern as command handler Lambdas (ADR-0002) — instantiate infrastructure, wire the relay, run.
 
 ## Retry and Failure Handling
 
@@ -212,7 +204,7 @@ attempt 4 → 30 minutes
 attempt 5 → dead letter
 ```
 
-Dead lettered intents are written to a separate DynamoDB table with the full record and error history. An EventBridge rule on the dead letter table triggers an alert. Dead lettered intents are never automatically retried — they require manual intervention or a replay tool.
+Dead lettered intents are written to a separate dead letter store with the full record and error history. An alert is raised when the dead letter store depth increases. Dead lettered intents are never automatically retried — they require manual intervention or a replay tool.
 
 The `attempt_count` and `last_error` fields on `OutboxRecord` are updated by the relay on each failure so the dead letter record carries the full failure history.
 

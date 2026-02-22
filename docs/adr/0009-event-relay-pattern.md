@@ -44,12 +44,12 @@ Chosen option 4: **Relay tails the event store, translates to integration events
 * Bad, because checkpoint management adds operational complexity — the checkpoint table must be backed up and recoverable
 * Bad, because consumers not handling unknown fields in additive changes can break — enforce lenient deserialisation as a consumer contract requirement
 * Bad, because advancing the checkpoint before Kafka acknowledgement in an implementation error would cause lost events — enforce in code review; this ADR serves that purpose
-* Bad, because event relay falling behind under high write load may go unnoticed — monitor consumer lag and DynamoDB Stream iterator age; scale Lambda concurrency if needed
-* Bad, because dead lettered events in the relay DLQ may go unnoticed — set CDK alarms on DLQ depth from day one
+* Bad, because event relay falling behind under high write load may go unnoticed — monitor consumer lag and checkpoint position lag; scale by running multiple process instances if needed
+* Bad, because dead lettered events in the relay may go unnoticed — set up alerting on the dead letter store depth from day one
 
 ### Confirmation
 
-Compliance is confirmed by verifying no external service accesses the domain event store table directly; integration event types carry a version suffix (`V1`, `V2`); the checkpoint is advanced only after Kafka `ack`; CDK alarms exist on the event relay DLQ.
+Compliance is confirmed by verifying no external service accesses the domain event store directly; integration event types carry a version suffix (`V1`, `V2`); the checkpoint is advanced only after Kafka `ack`; alerting exists on the event relay dead letter store.
 
 ## Domain Event vs Integration Event
 
@@ -88,32 +88,41 @@ The integration event schema uses stable, consumer-friendly types — strings fo
 
 ## Event Store Tailing
 
-The relay tails the domain event store using DynamoDB Streams in production. Each new event record in the store triggers the relay Lambda:
-
-```
-domain event store (DynamoDB)
-  → DynamoDB Stream emits new event record
-  → relay Lambda triggered per aggregate stream shard
-      → translate domain event → integration event
-      → publish to Kafka topic with ordering key
-      → advance checkpoint
-```
-
-The DynamoDB Stream preserves ordering per partition key (aggregate ID). The relay Lambda receives events in order per shard, which maps to order per aggregate — causality is preserved.
-
-In local development, a background polling task reads from the in-memory event store using a checkpoint offset:
+The event relay runner is a background task spawned by the shell at startup. It polls the event store from a stored checkpoint position and publishes new events:
 
 ```rust
-// shell/local/main.rs
+// shell/workers/event_relay_runner.rs
 
-let event_relay_runner = EventRelayRunner::new(
-    event_store.clone(),
-    event_relay.clone(),
-    technical_store.clone(),
-);
+pub struct EventRelayRunner {
+    event_store: Arc<dyn EventStore<TimeEntryEvent>>,
+    relay: Arc<TimeEntriesEventRelay>,
+    checkpoint: Arc<dyn EventRelayCheckpoint>,
+}
 
-tokio::spawn(async move {
-    event_relay_runner.run(Duration::from_millis(100)).await;
+impl EventRelayRunner {
+    pub async fn run(&self, interval: Duration) {
+        loop {
+            let from = self.checkpoint.load().await;
+            if let Ok(events) = self.event_store.load_from(from).await {
+                for (stream_id, version, event) in events {
+                    self.relay.relay(&event, version).await;
+                    self.checkpoint.advance(version).await.ok();
+                }
+            }
+            tokio::time::sleep(interval).await;
+        }
+    }
+}
+```
+
+In `shell/main.rs`:
+
+```rust
+tokio::spawn({
+    let runner = event_relay_runner.clone();
+    async move {
+        runner.run(Duration::from_millis(100)).await;
+    }
 });
 ```
 
@@ -253,7 +262,7 @@ TimeEntryEvent::Approved(e) => {
 }
 ```
 
-Version deprecation is tracked in the CDK stack and enforced via consumer group lag monitoring — if a consumer group stops consuming a version, it can be removed.
+Version deprecation is enforced via consumer group lag monitoring — if a consumer group stops consuming a version, it can be removed.
 
 ## Checkpoint
 
@@ -287,47 +296,25 @@ modules/
           ...
 
 shell/
-  lambdas/
-    time_entries/
-      event_relay.rs                     // Lambda entry point for event relay
-      relays/
-        ...
-  local/
-    main.rs
+  main.rs
+  workers/
+    event_relay_runner.rs                // wraps EventRelayRunner in a poll loop
 ```
 
-## CDK Stack
+## Infrastructure Examples
 
-The event relay Lambda is triggered by the DynamoDB Stream on the event store table:
+The event store and checkpoint store ports can be backed by any durable store:
 
-```typescript
-// cdk/lib/time_entries_stack.ts
+| Store | Implementation | Notes |
+|---|---|---|
+| Event store | `InMemoryEventStore` | Default — no durability |
+| Event store | `PostgresEventStore` | Polling on a `position` sequence column; supports `load_from(checkpoint)` |
+| Event store | `RedisEventStore` | Redis Streams with `XREAD` from a stored ID |
+| Checkpoint | `InMemoryEventRelayCheckpoint` | Resets on restart |
+| Checkpoint | `PostgresEventRelayCheckpoint` | Durable; survives restarts |
+| Checkpoint | `RedisEventRelayCheckpoint` | Fast; survives restarts |
 
-const eventRelay = new RustFunction(this, 'TimeEntriesEventRelay', {
-    bin: 'time_entries_event_relay',
-    environment: {
-        EVENT_STORE_TABLE: eventStoreTable.tableName,
-        KAFKA_BOOTSTRAP_SERVERS: props.kafkaBootstrapServers,
-        TIME_ENTRIES_TOPIC: 'time-registration.time-entries',
-        CHECKPOINT_TABLE: checkpointTable.tableName,
-    },
-});
-
-eventStoreTable.grantStreamRead(eventRelay);
-checkpointTable.grantReadWriteData(eventRelay);
-
-eventRelay.addEventSource(
-    new DynamoEventSource(eventStoreTable, {
-        startingPosition: StartingPosition.TRIM_HORIZON,
-        batchSize: 100,
-        bisectBatchOnError: true,
-        retryAttempts: 10,
-        onFailure: new SqsDlq(eventRelayDeadLetterQueue),
-    })
-);
-```
-
-One event relay Lambda per module — unlike intent relays which are one per intent type. The event relay handles all event types for the module because all events go to the same topic and translation is uniform.
+The shell chooses all implementations. The relay never knows which backing store is used.
 
 ## Intent Relay vs Event Relay Summary
 
