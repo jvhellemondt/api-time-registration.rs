@@ -4,96 +4,76 @@ This file provides guidance to CLAUDE when working with code in this repository.
 
 ## Commands
 
-All commands use Bun as the runtime. Run from the repository root:
+Scripts are defined in `[package.metadata.scripts]` in `crates/time_entries/Cargo.toml`. Run from `crates/time_entries/`:
 
 ```bash
-bun install                      # Install dependencies
-bun run build                    # Build all packages (runs in each workspace)
-bun run lint                     # Lint all packages
-bun run lint:fix                 # Auto-fix lint issues
-bun run typecheck                # Type-check all packages
-bun run coverage                 # Run tests with coverage for all packages
-bun run check-exports            # Validate package exports with attw
+cargo build                      # Build all crates (from workspace root)
+cargo run-script fmt             # Check formatting
+cargo run-script fmt-fix         # Auto-fix formatting
+cargo run-script lint            # Lint all crates (clippy)
+cargo run-script test            # Run all tests
+cargo run-script coverage        # Run tests with coverage
 ```
 
-Run commands scoped to a single package (e.g., v3):
+Run a single crate:
 
 ```bash
-cd packages/v3
-bun run test                     # Run tests once
-bun run test:watch               # Run tests in watch mode with coverage
-bun run coverage                 # Run tests with full coverage report
-bun run build                    # Build this package only
+cargo nextest run -p time_entries
+cargo nextest run -p time_entries_api
 ```
 
-Run a single test file:
+Run a single test:
 
 ```bash
-cd packages/v4
-bun run test src/path/to/file.test.ts
+cargo nextest run -p time_entries list_time_entries_by_user
 ```
 
-Coverage thresholds are enforced at 100% (lines, statements, functions, branches).
+Coverage thresholds are enforced at 100% (functions, lines, regions).
 
 ## Architecture
 
-This is a TypeScript library (`@arts-n-crafts/ts`) providing building blocks for **CQRS**, **DDD**, and **Event Sourcing
-** architectures. It ships two versioned packages under `packages/v3/` and `packages/v4/`, both with the same layered
-structure.
+This is a Rust API implementing **Functional Core Imperative Shell (FCIS)** within a **modular vertical slice** structure. The system is fully event-centric — domain events, intents, and technical events are all modelled explicitly as structured types. There is no logging.
 
-### Layer Structure
+### Workspace Structure
 
-Each package under `packages/vN/src/` has three layers:
+```
+crates/
+  time_entries/        # Functional core + application + shell (bounded context)
+  time_entries_api/    # HTTP entry point (Axum + async-graphql)
+```
 
-- **`core/`** — CQRS primitives: `Command`, `Query`, `CommandHandler`, `QueryHandler`, `EventHandler`, and factory
-  utilities (`createCommand`, `createQuery`)
-- **`domain/`** — DDD building blocks: `AggregateRoot`, `DomainEvent`, `Repository`, `Decider` (functional event
-  sourcing), and `Specification` (composable query predicates with `.and()/.or()/.not()`)
-- **`infrastructure/`** — Concrete implementations: `CommandBus`, `QueryBus`, `EventBus`, `EventStore`, `Database`,
-  `Outbox`/`OutboxWorker`, `Repository`, and `ScenarioTest`
+### Layer Hierarchy (per crate)
 
-### Two Implementation Styles
-
-Each infrastructure component has two implementations:
-
-- **`Simple*`** — Returns plain `Promise<void>` or `Promise<T>`
-- **`Resulted*`** — Returns `Result<T, E>` from `oxide.ts` for typed error handling without exceptions
+- **`core/`** — Pure functions: events, state, `evolve`, decider (`decide`), projector mappings. No I/O, no side effects.
+- **`application/`** — Imperative handlers: command handlers, query handlers, projector runner. Orchestrates core functions with ports.
+- **`shell/`** — Wiring: instantiates infrastructure, runs workers (e.g. projector runner).
+- **`adapters/`** — Concrete implementations of ports (in-memory event store, outbox, projections).
+- **`tests/`** — E2E tests, fixtures.
 
 ### Key Patterns
 
-**Decider** (functional event sourcing): Pure functions `decide(command, state) → events[]` and
-`evolve(state, event) → state` instead of OOP aggregates.
+**Decider** (functional event sourcing): `decide(command, state) → Decision` and `evolve(state, event) → state`. Pure functions, co-located with their use case.
 
-**Specification**: Composable predicates that serialize to `QueryNode` trees for database translation. Implementations
-go in `domain/Specification/implementations/`.
+**Decision type**: Two variants — `Accepted` carrying events and intents, or `Rejected` carrying a typed domain rejection reason (never a string). Rejection notification intents are added by the command handler, not the decider.
 
-**Outbox Pattern**: `InMemoryOutbox` + `GenericOutboxWorker` for reliable at-least-once event delivery.
+**Command handling lifecycle**: Load past events → fold through `evolve` → call `decide` → persist events + write outbox intents atomically. Rejection writes `InformCallerOfRejection` intent as cross-cutting policy.
 
-**IntegrationEvent vs DomainEvent**: `DomainEvent` has `source: 'internal'`, `IntegrationEvent` has
-`source: 'external'`. Use `ExternalEvent` for events received from outside the system.
+**Query handling**: Reads from pre-built projections only. Never touches the event store or command side. Projections are eventually consistent, maintained by a projector that tails the event store.
 
-**ScenarioTest**: BDD-style test helper for event-sourced aggregates:
+**Projector**: Tails the event store and applies projection mappings to build read models. Each query use case owns its own projection.
 
-```typescript
-await scenario.given(...pastEvents).when(command).then(expectedEvents)
-```
+**Three stores**: domain event store (source of truth), intent outbox (at-least-once delivery), technical event store (fire-and-forget I/O observation).
 
-### Exports
+**Outbound adapters**: Named by function. Ports defined in `core/ports.rs`. Implementations named by technology under `adapters/`.
 
-The root `package.json` exports:
-
-- `.` and `./v3` → `packages/v3/dist/`
-- `./v4` → `packages/v4/dist/`
-
-Each package is bundled with `tsup` producing both ESM (`.js`) and CJS (`.cjs`) with source maps and type declarations.
+**Inbound adapters**: Named by technology (HTTP, GraphQL). Co-located with their use case.
 
 ### Tooling
 
-- **ESLint**: `@antfu/eslint-config` with flat config (`eslint.config.mjs`). Method signatures must use method style (
-  `method()` not `method: () =>`).
-- **Commits**: Conventional commits enforced by `commitlint` + Husky. Use `bun run commit` for interactive commit via
-  `commitizen`.
-- **Release**: `release-it` with `changelogen` for changelog generation.
+- **Formatter**: `rustfmt` via `cargo fmt`
+- **Linter**: `cargo clippy`
+- **Test runner**: `cargo-nextest`
+- **Coverage**: `cargo-llvm-cov`
 
 ## Rule: always use qmd before reading files
 
@@ -101,28 +81,27 @@ Before reading files or exploring directories, always use qmd to search for info
 
 Available tools:
 
-- `qmd search “query”` — fast keyword search (BM25)
-
-- `qmd query “query”` — hybrid search with reranking (best quality)
-
-- `qmd vsearch “query”` — semantic vector search
-
+- `qmd search "query"` — fast keyword search (BM25)
+- `qmd query "query"` — hybrid search with reranking (best quality)
+- `qmd vsearch "query"` — semantic vector search
 - `qmd get <file>` — retrieve a specific document
 
 Use qmd search for quick lookups and qmd query for complex questions.
 
-Use Read/Glob only if qmd doesn’t return enough results.
+Use Read/Glob only if qmd doesn't return enough results.
 
 ## Rule: after completing a plan run checks
 
-Run the checks:
+Run the checks for the crate(s) you're working on:
 
-- bun run lint:fix # Auto-fix lint issues
-- bun run typecheck # Type-check all packages
-- bun run coverage # Run tests with coverage for all packages
-- bun run check-exports # Validate package exports with attw
+```bash
+cargo run-script fmt             # Check formatting
+cargo run-script lint            # Lint all crates
+cargo run-script test            # Run all tests
+cargo run-script coverage        # Run tests with coverage
+```
 
-## Rule: use Context7 for update to date documentation
+## Rule: use Context7 for up to date documentation
 
 Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me
 having to explicitly ask.
@@ -134,10 +113,10 @@ project conventions and tooling.
 
 ## Rule: store prompts in docs/prompts
 
-Store all prompts in .github/prompts/ with descriptive filenames. This keeps the repository organized and allows for
+Store all prompts in .docs/prompts/ with descriptive filenames. This keeps the repository organized and allows for
 easy reference and reuse of prompts.
 
 ## Rule: use ADRs for architectural decisions
 
-Document all significant architectural decisions in the docs/adr/ directory using the ADR template. This provides
+Document all significant architectural decisions in the docs/adr/ directory using the MADR template. This provides
 context and rationale for future maintainers and helps track the evolution of the codebase.
