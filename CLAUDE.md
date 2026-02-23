@@ -10,7 +10,7 @@ Scripts are defined in `[package.metadata.scripts]` in `Cargo.toml`. Run from th
 cargo build                      # Build the project
 cargo run-script fmt             # Check formatting
 cargo run-script fmt-fix         # Auto-fix formatting
-cargo run-script lint            # Lint all crates (clippy)
+cargo run-script lint            # Lint with clippy
 cargo run-script test            # Run all tests
 cargo run-script coverage        # Run tests with coverage
 ```
@@ -33,7 +33,7 @@ Coverage thresholds are enforced at 100% (functions, lines, regions).
 
 This is a Rust API implementing **Functional Core Imperative Shell (FCIS)** within a **modular vertical slice** structure. The system is fully event-centric — domain events, intents, and technical events are all modelled explicitly as structured types. There is no logging.
 
-### Workspace Structure
+### Project Structure
 
 ```
 src/
