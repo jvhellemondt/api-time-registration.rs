@@ -1,0 +1,183 @@
+use crate::shared::infrastructure::event_store::{EventStore, EventStoreError, LoadedStream};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use tokio::sync::RwLock;
+
+pub struct InMemoryEventStore<Event: Clone + Send + Sync + 'static> {
+    inner: RwLock<HashMap<String, Vec<Event>>>,
+    is_offline: bool,
+    delay_append_ms: AtomicU64,
+}
+
+impl<Event: Clone + Send + Sync + 'static> Default for InMemoryEventStore<Event> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+            is_offline: false,
+            delay_append_ms: AtomicU64::new(0),
+        }
+    }
+
+    pub fn toggle_offline(&mut self) {
+        self.is_offline = !self.is_offline;
+    }
+
+    pub fn set_delay_append_ms(&self, ms: u64) {
+        self.delay_append_ms.store(ms, Ordering::SeqCst);
+    }
+}
+
+#[async_trait::async_trait]
+impl<Event> EventStore<Event> for InMemoryEventStore<Event>
+where
+    Event: Clone + Send + Sync + 'static,
+{
+    async fn load(&self, id: &str) -> Result<LoadedStream<Event>, EventStoreError> {
+        if self.is_offline {
+            return Err(EventStoreError::Backend("Event store offline".to_string()));
+        }
+        let guard = self.inner.read().await;
+        let events = guard.get(id).cloned().unwrap_or_default();
+        Ok(LoadedStream {
+            version: guard.get(id).map(|v| v.len()).unwrap_or(0) as i64,
+            events,
+        })
+    }
+
+    async fn append(
+        &self,
+        stream_id: &str,
+        expected_version: i64,
+        new_events: &[Event],
+    ) -> Result<(), EventStoreError> {
+        let ms = self.delay_append_ms.load(Ordering::SeqCst);
+        if ms > 0 {
+            tokio::time::sleep(Duration::from_millis(ms)).await;
+        }
+        let mut g = self.inner.write().await;
+        let entry = g.entry(stream_id.to_string()).or_default();
+        let actual = entry.len() as i64;
+        if actual != expected_version {
+            return Err(EventStoreError::VersionMismatch {
+                expected: expected_version,
+                actual,
+            });
+        }
+        entry.extend_from_slice(new_events);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod time_entry_in_memory_event_store_tests {
+    use super::*;
+    use crate::tests::fixtures::events::domain_event::DomainEvent;
+    use rstest::rstest;
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_initiate_with_new_and_default() {
+        let _store_with_new: InMemoryEventStore<DomainEvent> = InMemoryEventStore::new();
+        let _store_with_default: InMemoryEventStore<DomainEvent> = InMemoryEventStore::default();
+        let s1 = _store_with_new.load("id").await.unwrap();
+        let s2 = _store_with_default.load("id").await.unwrap();
+        assert!(s1.events.is_empty() && s1.version == 0);
+        assert!(s2.events.is_empty() && s2.version == 0);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_append_and_load_an_event() {
+        let store = InMemoryEventStore::<DomainEvent>::new();
+        let event = DomainEvent { name: "Teddy Test" };
+        store
+            .append("1", 0, &vec![event])
+            .await
+            .expect("expected to append");
+        let stream = store.load("1").await.expect("expected to load");
+        assert_eq!(store.is_offline, false);
+        assert_eq!(stream.version, 1);
+        assert_eq!(stream.events.len(), 1);
+        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test");
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_append_and_load_an_event_with_delay() {
+        let store = InMemoryEventStore::<DomainEvent>::new();
+        store.set_delay_append_ms(100);
+        let event = DomainEvent { name: "Teddy Test" };
+        store
+            .append("1", 0, &vec![event])
+            .await
+            .expect("expected to append");
+        let stream = store.load("1").await.expect("expected to load");
+        assert_eq!(stream.version, 1);
+        assert_eq!(stream.events.len(), 1);
+        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test");
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_append_and_load_multiple_events() {
+        let store = InMemoryEventStore::<DomainEvent>::new();
+        let events = vec![
+            DomainEvent {
+                name: "Teddy Test_1",
+            },
+            DomainEvent {
+                name: "Teddy Test_2",
+            },
+            DomainEvent {
+                name: "Teddy Test_3",
+            },
+        ];
+        store
+            .append("1", 0, &events)
+            .await
+            .expect("expected to append");
+        let stream = store.load("1").await.expect("expected to load");
+        assert_eq!(stream.version, 3);
+        assert_eq!(stream.events.len(), 3);
+        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test_1");
+        assert_eq!(stream.events.get(1).unwrap().name, "Teddy Test_2");
+        assert_eq!(stream.events.get(2).unwrap().name, "Teddy Test_3");
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_fail_to_append_if_the_wrong_version_is_expected() {
+        let store = InMemoryEventStore::<DomainEvent>::new();
+        let event = DomainEvent { name: "Teddy Test" };
+        let result = store.append("1", 1, &vec![event]).await;
+        assert!(result.is_err());
+        match result {
+            Err(EventStoreError::VersionMismatch { expected, actual }) => {
+                assert_eq!(actual, 0);
+                assert_eq!(expected, 1);
+            }
+            _ => panic!("expected VersionMismatch error"),
+        }
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_fail_to_load_if_the_event_store_is_offline() {
+        let mut store = InMemoryEventStore::<DomainEvent>::new();
+        store.toggle_offline();
+        let result = store.load("1").await;
+        assert!(result.is_err());
+        assert!(store.is_offline);
+        match result {
+            Err(EventStoreError::Backend(msg)) => assert_eq!(msg, "Event store offline"),
+            _ => panic!("expected EventStoreError::Backend error"),
+        }
+    }
+}

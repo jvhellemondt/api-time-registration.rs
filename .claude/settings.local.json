@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_qmd-plugin_qmd__search",
+      "mcp__plugin_qmd-plugin_qmd__vector_search",
+      "mcp__plugin_qmd-plugin_qmd__get",
+      "mcp__plugin_qmd-plugin_qmd__status",
+      "Bash(cargo run-script:*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "Skill(qmd-plugin:qmd)"
+    ]
+  }
+}
