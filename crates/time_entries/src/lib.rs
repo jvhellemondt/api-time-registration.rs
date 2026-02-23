@@ -22,18 +22,17 @@ pub mod modules {
                 pub mod command;
                 pub mod decide;
                 pub mod decision;
+                pub mod graphql;
                 pub mod handler;
             }
             pub mod list_time_entries_by_user {
+                pub mod graphql;
                 pub mod handler;
                 pub mod projection;
                 pub mod queries_port;
             }
         }
         pub mod adapters {
-            pub mod inbound {
-                pub mod graphql;
-            }
             pub mod outbound {
                 pub mod event_store;
                 pub mod intent_outbox;

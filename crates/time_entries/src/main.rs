@@ -6,15 +6,13 @@ use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use time_entries::modules::time_entries::adapters::inbound::graphql::{
-    AppSchema, AppState, MutationRoot, QueryRoot,
-};
 use time_entries::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
 use time_entries::modules::time_entries::core::events::TimeEntryEvent;
 use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
 use time_entries::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
 use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+use time_entries::shell::graphql::{AppSchema, AppState, MutationRoot, QueryRoot};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

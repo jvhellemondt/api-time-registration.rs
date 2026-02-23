@@ -6,4 +6,6 @@
 // - Wire implementations into use case handlers.
 // - Spawn background workers (projector runner, intent relay runner, event relay runner).
 
+pub mod graphql;
+pub mod state;
 pub mod workers;
