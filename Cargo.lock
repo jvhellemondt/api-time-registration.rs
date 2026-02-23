@@ -1403,27 +1403,16 @@ name = "time_entries"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-graphql",
+ "async-graphql-axum",
  "async-trait",
+ "axum",
  "chrono",
  "dotenvy",
  "rstest",
  "serde",
  "serde_json",
  "thiserror",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "time_entries_api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-graphql",
- "async-graphql-axum",
- "axum",
- "chrono",
- "time_entries",
  "tokio",
  "tower-http",
  "tracing",

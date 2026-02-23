@@ -31,6 +31,9 @@ pub mod modules {
             }
         }
         pub mod adapters {
+            pub mod inbound {
+                pub mod graphql;
+            }
             pub mod outbound {
                 pub mod event_store;
                 pub mod intent_outbox;

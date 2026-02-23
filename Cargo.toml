@@ -1,7 +1,6 @@
 [workspace]
 members = [
   "crates/time_entries",
-  "crates/time_entries_api"
 ]
 resolver = "2"
 
