@@ -77,46 +77,20 @@ crates/
 
 ## Rule: always use qmd before reading files
 
-Before reading files or exploring directories, always use qmd to search for information in local projects.
+Always search qmd (`qmd` + `search` or `query` or `vsearch` or `get`) before reading files or exploring directories. Fall back to Read/Glob only if qmd returns insufficient results.
 
-Available tools:
+## Rule: after completing a plan, run checks
 
-- `qmd search "query"` — fast keyword search (BM25)
-- `qmd query "query"` — hybrid search with reranking (best quality)
-- `qmd vsearch "query"` — semantic vector search
-- `qmd get <file>` — retrieve a specific document
+Run `fmt`, `lint`, `test`, and `coverage` (see Commands above) after completing any plan.
 
-Use qmd search for quick lookups and qmd query for complex questions.
+## Rule: use Context7 for up-to-date documentation
 
-Use Read/Glob only if qmd doesn't return enough results.
-
-## Rule: after completing a plan run checks
-
-Run the checks for the crate(s) you're working on:
-
-```bash
-cargo run-script fmt             # Check formatting
-cargo run-script lint            # Lint all crates
-cargo run-script test            # Run all tests
-cargo run-script coverage        # Run tests with coverage
-```
-
-## Rule: use Context7 for up to date documentation
-
-Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me
-having to explicitly ask.
-
-## Rule: use Copilots instructions for code generation
-
-When generating code, always follow the instructions in CLAUDE.md to ensure consistency with
-project conventions and tooling.
+Always use Context7 MCP for library/API docs, code generation, and setup steps.
 
 ## Rule: store prompts in docs/prompts
 
-Store all prompts in .docs/prompts/ with descriptive filenames. This keeps the repository organized and allows for
-easy reference and reuse of prompts.
+Store all prompts in `docs/prompts/` with descriptive filenames.
 
 ## Rule: use ADRs for architectural decisions
 
-Document all significant architectural decisions in the docs/adr/ directory using the MADR template. This provides
-context and rationale for future maintainers and helps track the evolution of the codebase.
+Document significant architectural decisions in `docs/adr/` using the MADR template.
