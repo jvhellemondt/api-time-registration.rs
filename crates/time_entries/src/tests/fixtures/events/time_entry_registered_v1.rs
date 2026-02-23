@@ -2,7 +2,7 @@
 // This file lives under tests/fixtures/... but is compiled into the crate
 // only during tests via include! in src/lib.rs (cfg(test)).
 
-use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
+use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
 use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
 
 /// Builder function returning a canonical event instance for tests.

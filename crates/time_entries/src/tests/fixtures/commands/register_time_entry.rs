@@ -2,7 +2,7 @@
 // This file is included in the crate only during tests via `include!`
 // in `src/lib.rs`, exposing it under `time_entries::test_fixtures`.
 
-use crate::core::time_entry::decider::register::command::RegisterTimeEntry;
+use crate::modules::time_entries::use_cases::register_time_entry::command::RegisterTimeEntry;
 use serde::Deserialize;
 use std::fs;
 
@@ -30,7 +30,9 @@ impl Default for RegisterTimeEntryBuilder {
 #[allow(dead_code)]
 impl RegisterTimeEntryBuilder {
     pub fn new() -> Self {
-        let json_str = fs::read_to_string("./src/tests/fixtures/commands/json/register_time_entry.json").unwrap();
+        let json_str =
+            fs::read_to_string("./src/tests/fixtures/commands/json/register_time_entry.json")
+                .unwrap();
         let dto: RegisterTimeEntryDto = serde_json::from_str(&json_str).unwrap();
 
         Self {
@@ -43,7 +45,7 @@ impl RegisterTimeEntryBuilder {
                 description: dto.description,
                 created_by: "user-fixed-0001".to_string(),
                 created_at: 1700000000000,
-            }
+            },
         }
     }
 
@@ -94,8 +96,8 @@ impl RegisterTimeEntryBuilder {
 
 #[cfg(test)]
 mod time_entry_register_time_entry_builder_tests {
-    use rstest::rstest;
     use super::*;
+    use rstest::rstest;
 
     #[rstest]
     fn default_delegates_to_new_and_parses_json() {

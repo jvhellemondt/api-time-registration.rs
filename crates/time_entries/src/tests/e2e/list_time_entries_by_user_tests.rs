@@ -1,13 +1,13 @@
-use std::sync::Arc;
-use crate::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
-use crate::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
-use crate::adapters::in_memory::in_memory_projections::InMemoryProjections;
-use crate::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
-use crate::application::projector::runner::Projector;
-use crate::application::query_handlers::time_entries_queries::TimeEntryQueries;
-use crate::core::ports::EventStore;
-use crate::core::time_entry::event::TimeEntryEvent;
+use crate::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
+use crate::modules::time_entries::core::events::TimeEntryEvent;
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
+use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use crate::shared::infrastructure::event_store::EventStore;
+use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
+use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn lists_time_entries_by_user() {
@@ -19,7 +19,7 @@ async fn lists_time_entries_by_user() {
         repository: projections.clone(),
         watermark_repository: projections.clone(),
     };
-    let handler = TimeEntryRegisteredCommandHandler::new("time-entries", store.clone(), outbox);
+    let handler = RegisterTimeEntryHandler::new("time-entries", store.clone(), outbox);
 
     let commands: Vec<_> = [1000, 2000, 1500]
         .into_iter()

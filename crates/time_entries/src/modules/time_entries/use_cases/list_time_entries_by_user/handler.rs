@@ -1,15 +1,9 @@
-// Projector runner consumes a stream of events, translates them into mutations,
-// persists them using a repository, and advances the watermark.
-//
-// Purpose
-// - Guarantee idempotent application of events and safe recovery on failure.
-
-use std::sync::Arc;
-use crate::application::projector::repository::{
+use crate::modules::time_entries::adapters::outbound::projections::{
     TimeEntryProjectionRepository, WatermarkRepository,
 };
-use crate::core::time_entry::event::TimeEntryEvent;
-use crate::core::time_entry::projector::apply::{apply, Mutation};
+use crate::modules::time_entries::core::events::TimeEntryEvent;
+use crate::modules::time_entries::core::projections::{Mutation, apply};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Projector<TRepository, TWatermarkRepository>
@@ -60,8 +54,8 @@ where
 #[cfg(test)]
 mod time_entry_projector_runner_tests {
     use super::*;
-    use crate::adapters::in_memory::in_memory_projections::InMemoryProjections;
-    use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
+    use crate::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
+    use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
 
@@ -74,7 +68,9 @@ mod time_entry_projector_runner_tests {
 
     #[rstest]
     #[tokio::test]
-    async fn it_should_apply_mutations_to_the_repository(before_each: (TimeEntryRegisteredV1, InMemoryProjections)) {
+    async fn it_should_apply_mutations_to_the_repository(
+        before_each: (TimeEntryRegisteredV1, InMemoryProjections),
+    ) {
         let (event, store) = before_each;
         let st = Arc::new(store);
         let projector = Projector::new("projector-name".to_string(), st.clone(), st.clone());
@@ -85,7 +81,7 @@ mod time_entry_projector_runner_tests {
                 &TimeEntryEvent::TimeEntryRegisteredV1(event),
             )
             .await
-            .expect("InMemoryProjections > upsert failed");
+            .expect("apply_one failed");
         assert_eq!(
             st.get("projector-name").await.unwrap(),
             Some(String::from("time-entries-0001:0"))
@@ -94,7 +90,9 @@ mod time_entry_projector_runner_tests {
 
     #[rstest]
     #[tokio::test]
-    async fn it_should_fail_if_the_repository_is_offline(before_each: (TimeEntryRegisteredV1, InMemoryProjections)) {
+    async fn it_should_fail_if_the_repository_is_offline(
+        before_each: (TimeEntryRegisteredV1, InMemoryProjections),
+    ) {
         let (event, mut store) = before_each;
         store.toggle_offline();
         let st = Arc::new(store);
@@ -107,12 +105,19 @@ mod time_entry_projector_runner_tests {
             )
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Projections repository offline"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Projections repository offline")
+        );
     }
 
     #[rstest]
     #[tokio::test]
-    async fn it_should_fail_if_the_watermark_repository_is_offline(before_each: (TimeEntryRegisteredV1, InMemoryProjections)) {
+    async fn it_should_fail_if_the_watermark_repository_is_offline(
+        before_each: (TimeEntryRegisteredV1, InMemoryProjections),
+    ) {
         let (event, store) = before_each;
         let mut watermark_repository = InMemoryProjections::new();
         watermark_repository.toggle_offline();
@@ -126,6 +131,11 @@ mod time_entry_projector_runner_tests {
             )
             .await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Watermark repository offline"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Watermark repository offline")
+        );
     }
 }

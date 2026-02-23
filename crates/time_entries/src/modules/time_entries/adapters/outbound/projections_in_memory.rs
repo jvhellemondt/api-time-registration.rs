@@ -1,19 +1,10 @@
-// In memory projection repository, and watermark repository.
-//
-// Purpose
-// - Exercise projectors without a database.
-//
-// Responsibilities
-// - Store read model rows in a map keyed by identifiers.
-// - Track the last processed event per projector.
-
-use crate::application::projector::repository::{
+use crate::modules::time_entries::adapters::outbound::projections::{
     TimeEntryProjectionRepository, WatermarkRepository,
 };
-use crate::application::query_handlers::time_entries_queries::{
-    TimeEntryQueries, TimeEntryView,
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::{
+    projection::{TimeEntryRow, TimeEntryView},
+    queries_port::TimeEntryQueries,
 };
-use crate::core::time_entry::projector::model::TimeEntryRow;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 
@@ -23,6 +14,7 @@ pub struct InMemoryProjections {
     watermark: RwLock<HashMap<String, String>>,
     is_offline: bool,
 }
+
 impl InMemoryProjections {
     pub fn new() -> Self {
         Self::default()
@@ -39,26 +31,25 @@ impl TimeEntryProjectionRepository for InMemoryProjections {
         if self.is_offline {
             return Err(anyhow::anyhow!("Projections repository offline"));
         }
-
         let mut guard = self.rows.write().await;
         guard.insert((row.user_id.clone(), row.time_entry_id.clone()), row);
         Ok(())
     }
 }
+
 #[async_trait::async_trait]
 impl WatermarkRepository for InMemoryProjections {
     async fn get(&self, name: &str) -> anyhow::Result<Option<String>> {
         if self.is_offline {
             return Err(anyhow::anyhow!("Watermark repository offline"));
         }
-
         Ok(self.watermark.read().await.get(name).cloned())
     }
+
     async fn set(&self, name: &str, last: &str) -> anyhow::Result<()> {
         if self.is_offline {
             return Err(anyhow::anyhow!("Watermark repository offline"));
         }
-
         self.watermark
             .write()
             .await
@@ -77,7 +68,6 @@ impl TimeEntryQueries for InMemoryProjections {
         sort_by_start_time_desc: bool,
     ) -> anyhow::Result<Vec<TimeEntryView>> {
         let guard = self.rows.read().await;
-
         let mut items: Vec<TimeEntryRow> = guard
             .iter()
             .filter(|((uid, _), _)| uid == user_id)
@@ -105,7 +95,7 @@ impl TimeEntryQueries for InMemoryProjections {
 #[cfg(test)]
 pub mod time_entry_in_memory_projections_tests {
     use super::*;
-    use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
 
@@ -126,9 +116,7 @@ pub mod time_entry_in_memory_projections_tests {
             deleted_at: None,
             last_event_id: None,
         };
-
-        let repository = InMemoryProjections::new();
-        (event, row, repository)
+        (event, row, InMemoryProjections::new())
     }
 
     #[rstest]
@@ -137,11 +125,7 @@ pub mod time_entry_in_memory_projections_tests {
         before_each: (TimeEntryRegisteredV1, TimeEntryRow, InMemoryProjections),
     ) {
         let (event, row, repository) = before_each;
-        repository
-            .upsert(row.clone())
-            .await
-            .expect("InMemoryProjections > upsert failed");
-
+        repository.upsert(row.clone()).await.expect("upsert failed");
         assert_eq!(repository.rows.read().await.len(), 1);
         assert_eq!(
             repository
@@ -163,7 +147,7 @@ pub mod time_entry_in_memory_projections_tests {
         repository
             .set("projector-name", "event-id")
             .await
-            .expect("InMemoryProjections > set failed");
+            .expect("set failed");
         assert_eq!(
             repository.get("projector-name").await.unwrap(),
             Some(String::from("event-id"))
@@ -227,17 +211,13 @@ pub mod time_entry_in_memory_projections_tests {
         before_each: (TimeEntryRegisteredV1, TimeEntryRow, InMemoryProjections),
     ) {
         let (event, row, repository) = before_each;
-        repository
-            .upsert(row.clone())
-            .await
-            .expect("InMemoryProjections > upsert failed");
-
-        let time_entry_list = repository
+        repository.upsert(row.clone()).await.expect("upsert failed");
+        let list = repository
             .list_by_user_id(&event.user_id, 0, 10, false)
             .await
             .unwrap();
         let view = row.into();
-        assert_eq!(time_entry_list.len(), 1);
-        assert_eq!(time_entry_list[0], view);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0], view);
     }
 }

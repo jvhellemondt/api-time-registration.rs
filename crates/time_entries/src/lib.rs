@@ -1,42 +1,47 @@
-// Crate entry point. Re-export modules so tests and binaries can import them easily.
-//
-// Responsibilities
-// - Only declare and expose modules. No business logic here.
-//
-// How it is used
-// - Tests import modules from this crate root to reach the code under test.
-
-pub mod core {
-    pub mod ports;
-    pub mod time_entry;
-}
-
-pub mod application {
-    pub mod errors;
-    pub mod command_handlers {
-        pub mod register_handler;
+pub mod shared {
+    pub mod core {
+        pub mod primitives;
     }
-    pub mod query_handlers {
-        pub mod time_entries_queries;
-    }
-    pub mod projector {
-        pub mod repository;
-        pub mod runner;
+    pub mod infrastructure {
+        pub mod event_store;
+        pub mod intent_outbox;
     }
 }
 
-pub mod adapters {
-    pub mod in_memory {
-        pub mod in_memory_domain_outbox;
-        pub mod in_memory_event_store;
-        pub mod in_memory_projections;
-    }
-    pub mod mappers {
-        pub mod time_entry_row_to_time_entry_view;
+pub mod modules {
+    pub mod time_entries {
+        pub mod core {
+            pub mod events;
+            pub mod evolve;
+            pub mod intents;
+            pub mod projections;
+            pub mod state;
+        }
+        pub mod use_cases {
+            pub mod register_time_entry {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+            }
+            pub mod list_time_entries_by_user {
+                pub mod handler;
+                pub mod projection;
+                pub mod queries_port;
+            }
+        }
+        pub mod adapters {
+            pub mod outbound {
+                pub mod event_store;
+                pub mod intent_outbox;
+                pub mod projections;
+                pub mod projections_in_memory;
+            }
+        }
     }
 }
 
-// pub mod shell;
+pub mod shell;
 
 #[cfg(test)]
 pub mod tests {

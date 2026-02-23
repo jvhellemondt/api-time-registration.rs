@@ -854,7 +854,7 @@ Tests from `runner.rs` move here too.
 
 ```rust
 use std::sync::Arc;
-use crate::shared::infrastructure::projections::{TimeEntryProjectionRepository, WatermarkRepository};
+use crate::modules::time_entries::adapters::outbound::projections::{TimeEntryProjectionRepository, WatermarkRepository};
 use crate::modules::time_entries::core::events::TimeEntryEvent;
 use crate::modules::time_entries::core::projections::{apply, Mutation};
 

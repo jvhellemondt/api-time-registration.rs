@@ -1,21 +1,3 @@
-// Event payload: TimeEntryRegisteredV1.
-//
-// Purpose
-// - Record the business fact that a time entry was registered with the minimal fields.
-//
-// Responsibilities
-// - Carry only identifiers and snapshot values needed by the domain today.
-//
-// Inputs and outputs
-// - Inputs: the decider validates values from the command.
-// - Outputs: fed into evolving to produce the first registered state and into projectors.
-//
-// Versioning and evolution
-// - Prefer adding fields. For breaking changes, create TimeEntryRegisteredV2 in a new file and add a new variant.
-//
-// Timestamps
-// - All i64 values must use the same epoch unit (milliseconds).
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct TimeEntryRegisteredV1 {
     pub time_entry_id: String,
@@ -31,9 +13,9 @@ pub struct TimeEntryRegisteredV1 {
 #[cfg(test)]
 mod time_entry_registered_event_tests {
     use super::*;
+    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
     use std::fs;
-    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -49,7 +31,8 @@ mod time_entry_registered_event_tests {
 
     #[fixture]
     fn golden_registered_event_json() -> serde_json::Value {
-        let s = fs::read_to_string("./src/tests/fixtures/events/json/registered_event_v1.json").unwrap();
+        let s = fs::read_to_string("./src/tests/fixtures/events/json/registered_event_v1.json")
+            .unwrap();
         serde_json::from_str(&s).unwrap()
     }
 

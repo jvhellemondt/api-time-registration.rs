@@ -1,12 +1,4 @@
-// In memory implementation of the DomainOutbox port.
-//
-// Purpose
-// - Support tests and development for verifying that command handlers enqueue domain events.
-//
-// Responsibilities
-// - Collect enqueued domain events in a list for inspection.
-
-use crate::core::ports::{DomainOutbox, OutboxError, OutboxRow};
+use crate::shared::infrastructure::intent_outbox::{DomainOutbox, OutboxError, OutboxRow};
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 
@@ -35,8 +27,7 @@ impl DomainOutbox for InMemoryDomainOutbox {
                 });
             }
         }
-        let mut guard = self.rows.lock().await;
-        guard.push(row);
+        self.rows.lock().await.push(row);
         Ok(())
     }
 }
@@ -44,8 +35,8 @@ impl DomainOutbox for InMemoryDomainOutbox {
 #[cfg(test)]
 mod time_entry_in_memory_domain_outbox_tests {
     use super::*;
-    use rstest::rstest;
     use crate::tests::fixtures::events::domain_event::DomainEvent;
+    use rstest::rstest;
 
     #[rstest]
     #[tokio::test]
@@ -61,8 +52,7 @@ mod time_entry_in_memory_domain_outbox_tests {
             occurred_at: 0,
             payload: serde_json::to_value(&event).unwrap(),
         };
-        let enqueue_result = outbox.enqueue(row).await;
-        assert!(enqueue_result.is_ok());
+        assert!(outbox.enqueue(row).await.is_ok());
     }
 
     #[rstest]
@@ -80,13 +70,13 @@ mod time_entry_in_memory_domain_outbox_tests {
             payload: serde_json::to_value(&event).unwrap(),
         };
         outbox.enqueue(row.clone()).await.unwrap();
-        let enqueue_result = outbox.enqueue(row).await;
-        assert!(enqueue_result.is_err());
+        let result = outbox.enqueue(row).await;
+        assert!(result.is_err());
         assert!(matches!(
-            enqueue_result,
+            result,
             Err(OutboxError::Duplicate {
                 stream_id: _,
-                stream_version: 0,
+                stream_version: 0
             })
         ));
     }

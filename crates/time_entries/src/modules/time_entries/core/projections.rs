@@ -1,13 +1,5 @@
-// Translate a domain event into read model mutations.
-//
-// Purpose
-// - Build an upsert for registration and minimal patches for future change events.
-//
-// Responsibilities
-// - Calculate last_event_id as a stable identifier like "stream_id:version".
-// - Return a list of mutations to be persisted by the application runner.
-
-use crate::core::time_entry::{event::TimeEntryEvent, projector::model::TimeEntryRow};
+use crate::modules::time_entries::core::events::TimeEntryEvent;
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryRow;
 
 pub enum Mutation {
     Upsert(TimeEntryRow),

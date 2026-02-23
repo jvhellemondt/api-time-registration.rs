@@ -1,17 +1,5 @@
-// Evolve function: combine a prior state with a new event to produce the next state.
-//
-// Purpose
-// - Define deterministic transitions for each event.
-//
-// Boundaries
-// - No input or output. No side effects.
-//
-// Testing guidance
-// - Given a sequence of events, folding them should yield an expected state.
-// - Re-applying the same event should not apply twice.
-
-use crate::core::time_entry::event::TimeEntryEvent;
-use crate::core::time_entry::state::TimeEntryState;
+use crate::modules::time_entries::core::events::TimeEntryEvent;
+use crate::modules::time_entries::core::state::TimeEntryState;
 
 pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
     match (state, event) {
@@ -38,9 +26,9 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
 #[cfg(test)]
 mod time_entry_evolve_tests {
     use super::*;
-    use crate::core::time_entry::event::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use rstest::{fixture, rstest};
+    use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
+    use rstest::{fixture, rstest};
 
     #[fixture]
     fn registered_event() -> TimeEntryRegisteredV1 {
@@ -53,36 +41,35 @@ mod time_entry_evolve_tests {
             TimeEntryState::None,
             TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
         );
-
         match state {
             TimeEntryState::Registered {
-                time_entry_id: te,
-                user_id: u,
-                start_time: s,
-                end_time: e,
-                tags: t,
-                description: d,
-                created_at: ca,
-                created_by: cb,
-                updated_at: ua,
-                updated_by: ub,
-                deleted_at: del,
-                last_event_id: le,
+                time_entry_id,
+                user_id,
+                start_time,
+                end_time,
+                tags,
+                description,
+                created_at,
+                created_by,
+                updated_at,
+                updated_by,
+                deleted_at,
+                last_event_id,
             } => {
-                assert_eq!(te, registered_event.time_entry_id);
-                assert_eq!(u, registered_event.user_id);
-                assert_eq!(s, registered_event.start_time);
-                assert_eq!(e, registered_event.end_time);
-                assert_eq!(t, registered_event.tags);
-                assert_eq!(d, registered_event.description);
-                assert_eq!(ca, registered_event.created_at);
-                assert_eq!(cb, registered_event.created_by);
-                assert_eq!(ua, registered_event.created_at);
-                assert_eq!(ub, registered_event.created_by);
-                assert_eq!(del, None);
-                assert_eq!(le, None);
+                assert_eq!(time_entry_id, registered_event.time_entry_id);
+                assert_eq!(user_id, registered_event.user_id);
+                assert_eq!(start_time, registered_event.start_time);
+                assert_eq!(end_time, registered_event.end_time);
+                assert_eq!(tags, registered_event.tags);
+                assert_eq!(description, registered_event.description);
+                assert_eq!(created_at, registered_event.created_at);
+                assert_eq!(created_by, registered_event.created_by);
+                assert_eq!(updated_at, registered_event.created_at);
+                assert_eq!(updated_by, registered_event.created_by);
+                assert_eq!(deleted_at, None);
+                assert_eq!(last_event_id, None);
             }
-            _ => panic!("expected to evolve to Registered state"),
+            _ => panic!("expected Registered state"),
         }
     }
 
@@ -92,7 +79,6 @@ mod time_entry_evolve_tests {
             TimeEntryState::None,
             TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
         );
-
         let ev = TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
             time_entry_id: "te-fixed-0001".into(),
             user_id: "user-fixed-0001".into(),
@@ -103,7 +89,6 @@ mod time_entry_evolve_tests {
             created_at: 1_700_000_000_000,
             created_by: "user-fixed-0001".into(),
         });
-
         let next = evolve(registered.clone(), ev);
         assert_eq!(
             format!("{:?}", next),

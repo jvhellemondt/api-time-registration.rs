@@ -1,18 +1,17 @@
-use async_graphql::{Context, EmptySubscription, Object, Result as GqlResult, Schema, ID};
-use std::sync::Arc;
+use async_graphql::{Context, EmptySubscription, ID, Object, Result as GqlResult, Schema};
 use chrono::Utc;
+use std::sync::Arc;
+use time_entries::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
+use time_entries::modules::time_entries::core::events::TimeEntryEvent;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryView;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
+use time_entries::modules::time_entries::use_cases::register_time_entry::command::RegisterTimeEntry;
+use time_entries::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use time_entries::shared::infrastructure::event_store::EventStore;
+use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
+use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use uuid::Uuid;
-use time_entries::adapters::in_memory::in_memory_domain_outbox::InMemoryDomainOutbox;
-use time_entries::adapters::in_memory::in_memory_event_store::InMemoryEventStore;
-use time_entries::adapters::in_memory::in_memory_projections::InMemoryProjections;
-use time_entries::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
-use time_entries::application::projector::runner::Projector;
-use time_entries::application::query_handlers::time_entries_queries::{
-    TimeEntryQueries, TimeEntryView,
-};
-use time_entries::core::ports::EventStore;
-use time_entries::core::time_entry::decider::register::command::RegisterTimeEntry;
-use time_entries::core::time_entry::event::TimeEntryEvent;
 
 #[derive(async_graphql::SimpleObject, Clone)]
 pub struct GqlTimeEntry {
@@ -50,7 +49,9 @@ impl From<TimeEntryView> for GqlTimeEntry {
 #[derive(Clone)]
 pub struct AppState {
     pub queries: Arc<dyn TimeEntryQueries + Send + Sync>,
-    pub register_handler: Arc<TimeEntryRegisteredCommandHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>>,
+    pub register_handler: Arc<
+        RegisterTimeEntryHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
+    >,
     pub event_store: Arc<InMemoryEventStore<TimeEntryEvent>>,
     pub projector: Arc<Projector<InMemoryProjections, InMemoryProjections>>,
 }
@@ -112,14 +113,23 @@ impl MutationRoot {
 
         let stream_id = format!("TimeEntry-{time_entry_id}");
 
-        state.register_handler.handle(&stream_id, command).await
+        state
+            .register_handler
+            .handle(&stream_id, command)
+            .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         // Inline projection so queries see the new row immediately
-        let loaded = state.event_store.load(&stream_id).await
+        let loaded = state
+            .event_store
+            .load(&stream_id)
+            .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
         if let Some(last) = loaded.events.last() {
-            state.projector.apply_one(&stream_id, loaded.version, last).await
+            state
+                .projector
+                .apply_one(&stream_id, loaded.version, last)
+                .await
                 .map_err(|e| async_graphql::Error::new(e.to_string()))?;
         }
 

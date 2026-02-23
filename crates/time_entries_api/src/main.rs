@@ -1,18 +1,17 @@
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{routing::get, Extension, Router};
+use axum::{Extension, Router, routing::get};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
-use time_entries::adapters::in_memory::{
-    in_memory_domain_outbox::InMemoryDomainOutbox, in_memory_event_store::InMemoryEventStore,
-    in_memory_projections::InMemoryProjections,
-};
-use time_entries::application::command_handlers::register_handler::TimeEntryRegisteredCommandHandler;
-use time_entries::application::projector::runner::Projector;
-use time_entries::core::time_entry::event::TimeEntryEvent;
+use time_entries::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+use time_entries::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use time_entries::modules::time_entries::core::events::TimeEntryEvent;
+use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
+use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 
 mod schema;
 use crate::schema::AppState;
@@ -33,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         watermark_repository: projections.clone(),
     });
 
-    let register_handler = Arc::new(TimeEntryRegisteredCommandHandler::new(
+    let register_handler = Arc::new(RegisterTimeEntryHandler::new(
         "time-entries.v1",
         event_store.clone(),
         outbox,

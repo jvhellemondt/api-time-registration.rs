@@ -1,11 +1,5 @@
-// Repository traits for projection persistence and projector watermark tracking.
-//
-// Purpose
-// - TimeEntryProjectionRepository: upsert and patch read model rows.
-// - WatermarkRepository: track the last processed event for idempotency.
-
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryRow;
 use async_trait::async_trait;
-use crate::core::time_entry::projector::model::TimeEntryRow;
 
 #[async_trait]
 pub trait TimeEntryProjectionRepository: Send + Sync {
