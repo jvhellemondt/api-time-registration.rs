@@ -4,7 +4,7 @@ This file provides guidance to CLAUDE when working with code in this repository.
 
 ## Commands
 
-Scripts are defined in `[package.metadata.scripts]` in `crates/time_entries/Cargo.toml`. Run from `crates/time_entries/`:
+Scripts are defined in `[package.metadata.scripts]` in `Cargo.toml`. Run from the repo root:
 
 ```bash
 cargo build                      # Build all crates (from workspace root)
@@ -37,9 +37,11 @@ This is a Rust API implementing **Functional Core Imperative Shell (FCIS)** with
 ### Workspace Structure
 
 ```
-crates/
-  time_entries/        # Functional core + application + shell (bounded context)
-  time_entries_api/    # HTTP entry point (Axum + async-graphql)
+src/
+  modules/             # Bounded contexts (e.g. time_entries)
+  shared/              # Cross-cutting primitives and infrastructure
+  shell/               # Wiring, startup, workers
+  tests/               # E2E tests and fixtures
 ```
 
 ### Layer Hierarchy (per crate)
