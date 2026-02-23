@@ -7,7 +7,7 @@ This file provides guidance to CLAUDE when working with code in this repository.
 Scripts are defined in `[package.metadata.scripts]` in `Cargo.toml`. Run from the repo root:
 
 ```bash
-cargo build                      # Build all crates (from workspace root)
+cargo build                      # Build the project
 cargo run-script fmt             # Check formatting
 cargo run-script fmt-fix         # Auto-fix formatting
 cargo run-script lint            # Lint all crates (clippy)
@@ -15,11 +15,10 @@ cargo run-script test            # Run all tests
 cargo run-script coverage        # Run tests with coverage
 ```
 
-Run a single crate:
+Run a single package:
 
 ```bash
 cargo nextest run -p time_entries
-cargo nextest run -p time_entries_api
 ```
 
 Run a single test:
@@ -44,7 +43,7 @@ src/
   tests/               # E2E tests and fixtures
 ```
 
-### Layer Hierarchy (per crate)
+### Layer Hierarchy
 
 - **`core/`** — Pure functions: events, state, `evolve`, decider (`decide`), projector mappings. No I/O, no side effects.
 - **`application/`** — Imperative handlers: command handlers, query handlers, projector runner. Orchestrates core functions with ports.

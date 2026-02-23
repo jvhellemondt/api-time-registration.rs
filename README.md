@@ -2,7 +2,7 @@
 
 Purpose
 - This repository contains the backend implementation for the time registration bounded context.
-- It is structured as a Rust workspace. This scaffold creates the time entries crate.
+- It is structured as a single Rust crate.
 
 Structure
 - src/modules/: bounded contexts (currently time_entries)
