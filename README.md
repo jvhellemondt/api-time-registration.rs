@@ -5,12 +5,10 @@ Purpose
 - It is structured as a Rust workspace. This scaffold creates the time entries crate.
 
 Structure
-- crates/time_entries: the time entries bounded context.
-- Inside the crate, code is split into:
-  - core (pure domain logic)
-  - application (imperative orchestration)
-  - adapters (input and output implementations)
-  - shell (developer runners and composition)
+- src/modules/: bounded contexts (currently time_entries)
+- src/shared/: cross-cutting primitives and infrastructure
+- src/shell/: wiring and startup
+- src/tests/: E2E tests and fixtures
 
 Guiding principles
 - Keep the core pure and free of input or output.
@@ -56,7 +54,7 @@ cargo install cargo-audit
 ```
 
 #### To run the various commands:
-`cd` into the crate in which the `cargo.toml` that contains the "package.metadata.scripts"-block and run:
+From the repo root, run:
 
 ```sh
 cargo run-script <<cargo.toml command>>
