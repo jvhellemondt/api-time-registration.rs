@@ -25,6 +25,7 @@ pub mod modules {
                 pub mod handler;
                 pub mod inbound {
                     pub mod graphql;
+                    pub mod http;
                 }
             }
             pub mod list_time_entries_by_user {
