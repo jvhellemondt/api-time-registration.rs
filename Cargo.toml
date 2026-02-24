@@ -12,7 +12,7 @@ fmt-fix = "cargo fmt --all"
 lint = "cargo clippy --all-targets --all-features"
 test = "cargo nextest run --workspace --retries 2"
 test-integration = "cargo nextest run --workspace --retries 2 -- --ignored integration"
-coverage = "cargo llvm-cov nextest --workspace --ignore-filename-regex \"(shell/main\\.rs|/graphql\\.rs)\" --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100 --show-missing-lines"
+coverage = "cargo llvm-cov nextest --workspace --ignore-filename-regex \"(shell/main\\.rs|/graphql\\.rs|shell/http\\.rs)\" --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100 --show-missing-lines"
 
 [[bin]]
 name = "time_entries"
@@ -21,6 +21,8 @@ path = "src/shell/main.rs"
 [dev-dependencies]
 dotenvy = "0.15.7"
 rstest = "0.26.1"
+tower = { version = "0.5.3", features = ["util"] }
+http-body-util = "0.1"
 
 [dependencies]
 anyhow = "1.0.100"
