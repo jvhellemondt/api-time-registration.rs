@@ -14,6 +14,12 @@ test = "cargo nextest run --workspace --retries 2"
 test-integration = "cargo nextest run --workspace --retries 2 -- --ignored integration"
 coverage = "cargo llvm-cov nextest --workspace --ignore-filename-regex \"(shell/main\\.rs|/graphql\\.rs|shell/http\\.rs)\" --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100 --show-missing-lines"
 
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+
 [[bin]]
 name = "time_entries"
 path = "src/shell/main.rs"
