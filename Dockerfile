@@ -5,6 +5,7 @@ WORKDIR /app
 # Cache dependencies by building with a stub binary first
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src/shell && echo 'fn main() {}' > src/shell/main.rs
+RUN rustup target add x86_64-unknown-linux-musl
 RUN cargo build --release --target x86_64-unknown-linux-musl --bin time_entries
 RUN rm -rf src
 
