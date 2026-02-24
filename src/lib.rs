@@ -32,6 +32,7 @@ pub mod modules {
                 pub mod handler;
                 pub mod inbound {
                     pub mod graphql;
+                    pub mod http;
                 }
                 pub mod projection;
                 pub mod queries_port;
