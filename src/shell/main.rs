@@ -56,6 +56,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http());
 
     let addr: SocketAddr = "0.0.0.0:8080".parse().unwrap();
+    tracing::info!("Server running: http://{}/*", addr);
     tracing::info!("GraphQL endpoint: http://{}/gql", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await?;
