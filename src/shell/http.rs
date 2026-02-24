@@ -1,5 +1,6 @@
 use axum::{
-    Router,
+    Json, Router,
+    response::IntoResponse,
     routing::{get, post},
 };
 
@@ -7,8 +8,13 @@ use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound:
 use crate::modules::time_entries::use_cases::register_time_entry::inbound::http as register_http;
 use crate::shell::state::AppState;
 
+async fn health() -> impl IntoResponse {
+    Json(serde_json::json!({"status": "ok"}))
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/health", get(health))
         .route("/register-time-entry", post(register_http::handle))
         .route("/list-time-entries", get(list_http::handle))
         .with_state(state)
