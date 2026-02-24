@@ -13,6 +13,7 @@ use time_entries::modules::time_entries::use_cases::register_time_entry::handler
 use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use time_entries::shell::graphql::{AppSchema, AppState, MutationRoot, QueryRoot};
+use time_entries::shell::http as shell_http;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -42,11 +43,14 @@ async fn main() -> anyhow::Result<()> {
         projector,
     };
 
+    let http_router = shell_http::router(state.clone());
+
     let schema: AppSchema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(state)
         .finish();
 
     let app = Router::new()
+        .merge(http_router)
         .route("/gql", get(graphiql).post(graphql))
         .layer(Extension(schema))
         .layer(TraceLayer::new_for_http());

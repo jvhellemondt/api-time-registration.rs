@@ -7,5 +7,6 @@
 // - Spawn background workers (projector runner, intent relay runner, event relay runner).
 
 pub mod graphql;
+pub mod http;
 pub mod state;
 pub mod workers;

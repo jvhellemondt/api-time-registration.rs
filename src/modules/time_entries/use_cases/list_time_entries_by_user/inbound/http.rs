@@ -50,12 +50,51 @@ mod list_time_entries_by_user_http_inbound_tests {
     use crate::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
     use crate::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryView;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
     use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
     use crate::shell::state::AppState;
 
     use super::handle;
+
+    struct FailingQueries;
+
+    #[async_trait::async_trait]
+    impl TimeEntryQueries for FailingQueries {
+        async fn list_by_user_id(
+            &self,
+            _user_id: &str,
+            _offset: u64,
+            _limit: u64,
+            _sort_by_start_time_desc: bool,
+        ) -> anyhow::Result<Vec<TimeEntryView>> {
+            Err(anyhow::anyhow!("queries offline"))
+        }
+    }
+
+    fn make_failing_queries_state() -> AppState {
+        let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
+        let outbox = Arc::new(InMemoryDomainOutbox::new());
+        let projections = Arc::new(InMemoryProjections::new());
+        let projector = Arc::new(Projector::new(
+            "test",
+            projections.clone(),
+            projections.clone(),
+        ));
+        let register_handler = Arc::new(RegisterTimeEntryHandler::new(
+            "time-entries",
+            event_store.clone(),
+            outbox,
+        ));
+        AppState {
+            queries: Arc::new(FailingQueries),
+            register_handler,
+            event_store,
+            projector,
+        }
+    }
 
     fn make_test_state() -> AppState {
         let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
@@ -114,5 +153,19 @@ mod list_time_entries_by_user_http_inbound_tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn it_should_return_500_when_queries_fail() {
+        let response = app(make_failing_queries_state())
+            .oneshot(
+                Request::get("/list-time-entries?user_id=u-1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }
