@@ -15,5 +15,5 @@ RUN touch src/shell/main.rs && cargo build --release --bin time_entries
 FROM alpine:latest
 RUN apk add --no-cache ca-certificates curl
 COPY --from=builder /app/target/release/time_entries /usr/local/bin/time_entries
-EXPOSE 8080
+EXPOSE 6700
 CMD ["time_entries"]
