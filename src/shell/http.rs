@@ -3,6 +3,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
+use tower_http::cors::CorsLayer;
 
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound::http as list_http;
 use crate::modules::time_entries::use_cases::register_time_entry::inbound::http as register_http;
@@ -18,4 +19,5 @@ pub fn router(state: AppState) -> Router {
         .route("/register-time-entry", post(register_http::handle))
         .route("/list-time-entries", get(list_http::handle))
         .with_state(state)
+        .layer(CorsLayer::permissive())
 }
