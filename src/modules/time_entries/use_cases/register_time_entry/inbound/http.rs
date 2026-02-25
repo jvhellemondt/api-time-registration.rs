@@ -1,9 +1,11 @@
+use axum::extract::Query;
 use axum::{
-    Json, extract::State, extract::rejection::JsonRejection, http::StatusCode,
-    response::IntoResponse,
+    extract::rejection::JsonRejection, extract::State, http::StatusCode, response::IntoResponse,
+    Json,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::modules::time_entries::use_cases::register_time_entry::command::RegisterTimeEntry;
@@ -12,11 +14,10 @@ use crate::shell::state::AppState;
 
 #[derive(Deserialize)]
 pub struct RegisterTimeEntryBody {
-    pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
-    pub description: String,
+    // pub tags: Vec<String>,
+    // pub description: String,
 }
 
 #[derive(Serialize)]
@@ -26,23 +27,32 @@ pub struct RegisterTimeEntryResponse {
 
 pub async fn handle(
     State(state): State<AppState>,
+    Query(params): Query<HashMap<String , String>>,
     body: Result<Json<RegisterTimeEntryBody>, JsonRejection>,
 ) -> impl IntoResponse {
     let Json(body) = match body {
         Ok(b) => b,
-        Err(_) => return StatusCode::UNPROCESSABLE_ENTITY.into_response(),
+        Err(rej) => {
+            return StatusCode::UNPROCESSABLE_ENTITY.into_response();
+        }
     };
 
     let time_entry_id = Uuid::now_v7();
     let stream_id = format!("TimeEntry-{time_entry_id}");
+    let user_id = match params.get("user_id") {
+        Some(user_id) => user_id,
+        None => {
+            return StatusCode::UNPROCESSABLE_ENTITY.into_response();
+        }
+    };
 
     let command = RegisterTimeEntry {
         time_entry_id: time_entry_id.to_string(),
-        user_id: body.user_id,
+        user_id: user_id.to_owned(),
         start_time: body.start_time,
         end_time: body.end_time,
-        tags: body.tags,
-        description: body.description,
+        tags: vec!["work".to_string()],
+        description: "Work work work work work".to_string(),
         created_at: Utc::now().timestamp_millis(),
         created_by: "user-from-auth".into(),
     };
@@ -63,10 +73,10 @@ pub async fn handle(
 #[cfg(test)]
 mod register_time_entry_http_inbound_tests {
     use axum::{
-        Router,
         body::Body,
         http::{Request, StatusCode},
         routing::post,
+        Router,
     };
     use http_body_util::BodyExt;
     use std::sync::Arc;
