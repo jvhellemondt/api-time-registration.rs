@@ -16,6 +16,14 @@ pub struct LoadedStream<E> {
     pub version: i64,
 }
 
+#[derive(Debug, Clone)]
+pub struct StoredEvent<E> {
+    pub global_position: u64,
+    pub stream_id: String,
+    pub stream_version: i64,
+    pub event: E,
+}
+
 #[async_trait]
 pub trait EventStore<Event: Clone + Send + Sync + 'static>: Send + Sync {
     async fn load(&self, stream_id: &str) -> Result<LoadedStream<Event>, EventStoreError>;

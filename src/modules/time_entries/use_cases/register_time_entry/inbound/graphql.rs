@@ -3,7 +3,6 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::modules::time_entries::use_cases::register_time_entry::command::RegisterTimeEntry;
-use crate::shared::infrastructure::event_store::EventStore;
 use crate::shell::state::AppState;
 
 pub struct MutationRoot;
@@ -40,20 +39,6 @@ impl MutationRoot {
             .handle(&stream_id, command)
             .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-
-        // Inline projection so queries see the new row immediately
-        let loaded = state
-            .event_store
-            .load(&stream_id)
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-        if let Some(last) = loaded.events.last() {
-            state
-                .projector
-                .apply_one(&stream_id, loaded.version, last)
-                .await
-                .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-        }
 
         Ok(ID(time_entry_id.to_string()))
     }

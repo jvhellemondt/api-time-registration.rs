@@ -47,14 +47,16 @@ mod list_time_entries_by_user_http_inbound_tests {
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    use crate::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryView;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+        ListTimeEntriesState, TimeEntryView,
+    };
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
     use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
     use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+    use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::shell::state::AppState;
 
     use super::handle;
@@ -77,12 +79,6 @@ mod list_time_entries_by_user_http_inbound_tests {
     fn make_failing_queries_state() -> AppState {
         let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
         let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projections = Arc::new(InMemoryProjections::new());
-        let projector = Arc::new(Projector::new(
-            "test",
-            projections.clone(),
-            projections.clone(),
-        ));
         let register_handler = Arc::new(RegisterTimeEntryHandler::new(
             "time-entries",
             event_store.clone(),
@@ -92,29 +88,22 @@ mod list_time_entries_by_user_http_inbound_tests {
             queries: Arc::new(FailingQueries),
             register_handler,
             event_store,
-            projector,
         }
     }
 
     fn make_test_state() -> AppState {
         let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
         let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projections = Arc::new(InMemoryProjections::new());
-        let projector = Arc::new(Projector::new(
-            "test",
-            projections.clone(),
-            projections.clone(),
-        ));
+        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
         let register_handler = Arc::new(RegisterTimeEntryHandler::new(
             "time-entries",
             event_store.clone(),
             outbox,
         ));
         AppState {
-            queries: projections,
+            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
             register_handler,
             event_store,
-            projector,
         }
     }
 

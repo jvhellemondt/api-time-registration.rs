@@ -6,29 +6,44 @@ use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use time_entries::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
 use time_entries::modules::time_entries::core::events::TimeEntryEvent;
-use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
+    ListTimeEntriesProjector, ProjectionTechnicalEvent,
+};
+use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
 use time_entries::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use time_entries::shared::infrastructure::event_store::StoredEvent;
 use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+use time_entries::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
 use time_entries::shell::graphql::{AppSchema, AppState, MutationRoot, QueryRoot};
 use time_entries::shell::http as shell_http;
+use time_entries::shell::workers::projector_runner;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-    // In-memory deps for now
-    let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
+    let (event_tx, _) = tokio::sync::broadcast::channel::<StoredEvent<TimeEntryEvent>>(1024);
+    let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new_with_sender(
+        event_tx.clone(),
+    ));
     let outbox = Arc::new(InMemoryDomainOutbox::new());
-    let projections = Arc::new(InMemoryProjections::new());
 
-    let projector = Arc::new(Projector {
-        name: "time_entry_summary".to_string(),
-        repository: projections.clone(),
-        watermark_repository: projections.clone(),
-    });
+    let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
+
+    let (tech_tx, _) = tokio::sync::broadcast::channel::<ProjectionTechnicalEvent>(256);
+    let projector = ListTimeEntriesProjector::new(
+        "list_time_entries_by_user",
+        projection_store.clone(),
+        event_store.clone(),
+        tech_tx,
+    );
+    let receiver = event_tx.subscribe();
+    projector_runner::spawn(projector, receiver);
+
+    let query_handler = Arc::new(ListTimeEntriesQueryHandler::new(projection_store));
 
     let register_handler = Arc::new(RegisterTimeEntryHandler::new(
         "time-entries.v1",
@@ -37,10 +52,9 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let state = AppState {
-        queries: projections,
+        queries: query_handler,
         register_handler,
         event_store,
-        projector,
     };
 
     let http_router = shell_http::router(state.clone());
