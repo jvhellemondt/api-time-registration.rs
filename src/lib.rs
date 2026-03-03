@@ -5,6 +5,7 @@ pub mod shared {
     pub mod infrastructure {
         pub mod event_store;
         pub mod intent_outbox;
+        pub mod projection_store;
     }
 }
 
@@ -35,6 +36,8 @@ pub mod modules {
                     pub mod http;
                 }
                 pub mod projection;
+                pub mod projector;
+                pub mod queries;
                 pub mod queries_port;
             }
         }

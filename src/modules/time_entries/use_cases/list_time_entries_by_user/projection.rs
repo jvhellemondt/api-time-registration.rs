@@ -1,3 +1,10 @@
+pub const SCHEMA_VERSION: u32 = 1;
+
+#[derive(Clone, Default)]
+pub struct ListTimeEntriesState {
+    pub rows: std::collections::HashMap<(String, String), TimeEntryRow>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TimeEntryRow {
     pub time_entry_id: String,

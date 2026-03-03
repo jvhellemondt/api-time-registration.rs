@@ -1,7 +1,7 @@
 use axum::extract::Query;
 use axum::{
-    extract::rejection::JsonRejection, extract::State, http::StatusCode, response::IntoResponse,
-    Json,
+    Json, extract::State, extract::rejection::JsonRejection, http::StatusCode,
+    response::IntoResponse,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -73,21 +73,22 @@ pub async fn handle(
 #[cfg(test)]
 mod register_time_entry_http_inbound_tests {
     use axum::{
+        Router,
         body::Body,
         http::{Request, StatusCode},
         routing::post,
-        Router,
     };
     use http_body_util::BodyExt;
     use std::sync::Arc;
     use tower::ServiceExt;
 
-    use crate::modules::time_entries::adapters::outbound::projections_in_memory::InMemoryProjections;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::handler::Projector;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
     use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+    use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::shell::state::AppState;
 
     use super::handle;
@@ -95,22 +96,16 @@ mod register_time_entry_http_inbound_tests {
     fn make_test_state() -> AppState {
         let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
         let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projections = Arc::new(InMemoryProjections::new());
-        let projector = Arc::new(Projector::new(
-            "test",
-            projections.clone(),
-            projections.clone(),
-        ));
+        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
         let register_handler = Arc::new(RegisterTimeEntryHandler::new(
             "time-entries",
             event_store.clone(),
             outbox,
         ));
         AppState {
-            queries: projections,
+            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
             register_handler,
             event_store,
-            projector,
         }
     }
 
@@ -119,22 +114,16 @@ mod register_time_entry_http_inbound_tests {
         event_store.toggle_offline();
         let event_store = Arc::new(event_store);
         let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projections = Arc::new(InMemoryProjections::new());
-        let projector = Arc::new(Projector::new(
-            "test",
-            projections.clone(),
-            projections.clone(),
-        ));
+        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
         let register_handler = Arc::new(RegisterTimeEntryHandler::new(
             "time-entries",
             event_store.clone(),
             outbox,
         ));
         AppState {
-            queries: projections,
+            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
             register_handler,
             event_store,
-            projector,
         }
     }
 
