@@ -64,17 +64,17 @@ where
 
     pub async fn run(self, mut receiver: broadcast::Receiver<StoredEvent<TimeEntryEvent>>) {
         let stored_schema = self.store.schema_version().await.unwrap_or(None);
-        if stored_schema != Some(SCHEMA_VERSION) {
-            if let Err(reason) = self.rebuild().await {
-                let _ = self
-                    .technical_tx
-                    .send(ProjectionTechnicalEvent::RebuildFailed {
-                        projection_name: self.name.clone(),
-                        reason: reason.to_string(),
-                        timestamp: chrono::Utc::now().timestamp_millis(),
-                    });
-                return;
-            }
+        if stored_schema != Some(SCHEMA_VERSION)
+            && let Err(reason) = self.rebuild().await
+        {
+            let _ = self
+                .technical_tx
+                .send(ProjectionTechnicalEvent::RebuildFailed {
+                    projection_name: self.name.clone(),
+                    reason: reason.to_string(),
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                });
+            return;
         }
 
         loop {

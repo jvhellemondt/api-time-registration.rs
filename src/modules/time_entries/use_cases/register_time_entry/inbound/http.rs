@@ -193,8 +193,7 @@ mod register_time_entry_http_inbound_tests {
 
         let response = app(make_offline_event_store_state())
             .oneshot(
-                Request::
-                post(format!("/register-time-entry?user_id={}", "u-1").to_string())
+                Request::post(format!("/register-time-entry?user_id={}", "u-1").to_string())
                     .header("content-type", "application/json")
                     .body(Body::from(body))
                     .unwrap(),
