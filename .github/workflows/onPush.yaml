@@ -42,7 +42,7 @@ jobs:
           cargo binstall --no-confirm cargo-audit
 
       - name: 🧪 Running tests and code coverage...
-        run: cargo run-script test
+        run: cargo nextest run --workspace --retries 2
         # run: cargo llvm-cov nextest --workspace --fail-under-functions 100 --fail-under-lines 100 --fail-under-regions 100
 
       - name: ☣️ Checking for security vulnerabilities...
