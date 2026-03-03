@@ -27,12 +27,12 @@ pub struct RegisterTimeEntryResponse {
 
 pub async fn handle(
     State(state): State<AppState>,
-    Query(params): Query<HashMap<String , String>>,
+    Query(params): Query<HashMap<String, String>>,
     body: Result<Json<RegisterTimeEntryBody>, JsonRejection>,
 ) -> impl IntoResponse {
     let Json(body) = match body {
         Ok(b) => b,
-        Err(rej) => {
+        Err(_) => {
             return StatusCode::UNPROCESSABLE_ENTITY.into_response();
         }
     };
@@ -150,7 +150,7 @@ mod register_time_entry_http_inbound_tests {
 
         let response = app(make_test_state())
             .oneshot(
-                Request::post("/register-time-entry")
+                Request::post(format!("/register-time-entry?user_id={}", "u-1").to_string())
                     .header("content-type", "application/json")
                     .body(Body::from(body))
                     .unwrap(),
@@ -167,12 +167,11 @@ mod register_time_entry_http_inbound_tests {
     #[tokio::test]
     async fn it_should_return_409_when_domain_rejects_invalid_interval() {
         // end_time < start_time triggers DecideError::InvalidInterval -> ApplicationError::Domain -> 409
-        let body =
-            r#"{"user_id":"u-1","start_time":2000,"end_time":1000,"tags":[],"description":"test"}"#;
+        let body = r#"{"start_time":2000,"end_time":1000}"#;
 
         let response = app(make_test_state())
             .oneshot(
-                Request::post("/register-time-entry")
+                Request::post(format!("/register-time-entry?user_id={}", "u-1").to_string())
                     .header("content-type", "application/json")
                     .body(Body::from(body))
                     .unwrap(),
@@ -187,7 +186,7 @@ mod register_time_entry_http_inbound_tests {
     async fn it_should_return_422_on_invalid_json() {
         let response = app(make_test_state())
             .oneshot(
-                Request::post("/register-time-entry")
+                Request::post(format!("/register-time-entry?user_id={}", "u-1").to_string())
                     .header("content-type", "application/json")
                     .body(Body::from("not-json"))
                     .unwrap(),
@@ -205,7 +204,8 @@ mod register_time_entry_http_inbound_tests {
 
         let response = app(make_offline_event_store_state())
             .oneshot(
-                Request::post("/register-time-entry")
+                Request::
+                post(format!("/register-time-entry?user_id={}", "u-1").to_string())
                     .header("content-type", "application/json")
                     .body(Body::from(body))
                     .unwrap(),
