@@ -67,7 +67,8 @@ async fn main() -> anyhow::Result<()> {
         .merge(http_router)
         .route("/gql", get(graphiql).post(graphql))
         .layer(Extension(schema))
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(tower_http::cors::CorsLayer::permissive());
 
     let addr: SocketAddr = "[::]:8080".parse().unwrap();
     tracing::info!("Server running: http://{}/*", addr);
