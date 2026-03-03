@@ -170,23 +170,20 @@ mod list_time_entries_projector_tests {
     use super::*;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
     use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
-    use crate::shared::infrastructure::event_store::EventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
     use rstest::rstest;
 
-    fn make_event_store_with_one_event() -> Arc<InMemoryEventStore<TimeEntryEvent>> {
+    async fn make_event_store_with_one_event() -> Arc<InMemoryEventStore<TimeEntryEvent>> {
         let (tx, _) = broadcast::channel(16);
         let store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx));
         let outbox = Arc::new(InMemoryDomainOutbox::new());
         let handler = RegisterTimeEntryHandler::new("t", store.clone(), outbox);
-        tokio::runtime::Handle::current().block_on(async {
-            handler
-                .handle("TimeEntry-abc", RegisterTimeEntryBuilder::new().build())
-                .await
-                .unwrap();
-        });
+        handler
+            .handle("TimeEntry-abc", RegisterTimeEntryBuilder::new().build())
+            .await
+            .unwrap();
         store
     }
 
@@ -244,7 +241,7 @@ mod list_time_entries_projector_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_rebuild_when_schema_version_mismatches() {
-        let event_store = make_event_store_with_one_event();
+        let event_store = make_event_store_with_one_event().await;
         let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
 
         let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(16);
@@ -364,9 +361,11 @@ mod list_time_entries_projector_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_trigger_rebuild_on_lagged_receiver() {
-        let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(1);
+        // Event store uses its own sender (moved in, not cloned) so it doesn't
+        // keep the projector's receiver channel alive.
+        let (store_tx, _) = broadcast::channel(16);
         let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new_with_sender(
-            tx.clone(),
+            store_tx,
         ));
 
         let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
@@ -374,8 +373,6 @@ mod list_time_entries_projector_tests {
             .save_schema_version(SCHEMA_VERSION)
             .await
             .unwrap();
-
-        let receiver = tx.subscribe();
 
         let outbox = Arc::new(InMemoryDomainOutbox::new());
         let handler = RegisterTimeEntryHandler::new("t", event_store.clone(), outbox);
@@ -398,6 +395,15 @@ mod list_time_entries_projector_tests {
             .await
             .unwrap();
 
+        // Separate small-capacity channel for the projector's receiver.
+        // Send 2 messages to a capacity-1 channel so the receiver lags,
+        // then drop the sender so the channel closes after the rebuild.
+        let (lag_tx, receiver) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(1);
+        let dummy = event_store.load_all_from(0).await.unwrap().remove(0);
+        lag_tx.send(dummy.clone()).unwrap();
+        lag_tx.send(dummy).unwrap();
+        drop(lag_tx);
+
         let (tech_tx, mut tech_rx) = broadcast::channel(32);
         let projector = ListTimeEntriesProjector::new(
             "lag-proj",
@@ -406,7 +412,6 @@ mod list_time_entries_projector_tests {
             tech_tx,
         );
 
-        drop(tx);
         projector.run(receiver).await;
 
         let state = projection_store.state().await.unwrap().unwrap();
@@ -442,7 +447,7 @@ mod list_time_entries_projector_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_exit_and_emit_rebuild_failed_when_store_is_offline_on_startup() {
-        let event_store = make_event_store_with_one_event();
+        let event_store = make_event_store_with_one_event().await;
         let mut projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         projection_store.toggle_offline();
         let projection_store = Arc::new(projection_store);
@@ -457,8 +462,13 @@ mod list_time_entries_projector_tests {
 
         projector.run(receiver).await;
 
-        let ev = tech_rx.try_recv().unwrap();
-        assert!(matches!(ev, ProjectionTechnicalEvent::RebuildFailed { .. }));
+        let mut got_failed = false;
+        while let Ok(ev) = tech_rx.try_recv() {
+            if matches!(ev, ProjectionTechnicalEvent::RebuildFailed { .. }) {
+                got_failed = true;
+            }
+        }
+        assert!(got_failed);
     }
 
     #[rstest]
