@@ -30,7 +30,6 @@ pub mod modules {
                 }
             }
             pub mod list_time_entries_by_user {
-                pub mod handler;
                 pub mod inbound {
                     pub mod graphql;
                     pub mod http;
@@ -45,8 +44,6 @@ pub mod modules {
             pub mod outbound {
                 pub mod event_store;
                 pub mod intent_outbox;
-                pub mod projections;
-                pub mod projections_in_memory;
             }
         }
     }
