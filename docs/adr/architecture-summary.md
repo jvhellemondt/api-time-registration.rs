@@ -160,7 +160,7 @@ The shell reads config from environment variables, instantiates infrastructure i
 
 The following were discussed or identified as gaps without a formal ADR.
 
-**Projector runner** — how the projector tails the event store, checkpoint management, and rebuild strategy.
+~~**Projector runner** — how the projector tails the event store, checkpoint management, and rebuild strategy.~~
 
 **Event store table design** — partition key strategy, optimistic concurrency control, schema design.
 
@@ -180,4 +180,4 @@ The following were discussed or identified as gaps without a formal ADR.
 
 **Aggregate boundary decisions** — rules for deciding what constitutes an aggregate.
 
-**Projection rebuild strategy** — how projections are cleared and rebuilt during replay, and how queries are served during a rebuild.
+~~**Projection rebuild strategy** — how projections are cleared and rebuilt during replay, and how queries are served during a rebuild.~~
