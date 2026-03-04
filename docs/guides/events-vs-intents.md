@@ -1,26 +1,57 @@
-# Events vs Intents
+# Events vs Intents vs Technical Events
 
-This guide explains the difference between domain events and domain intents, how they relate
-to each other, when to use each, and how to structure relays for outbound communication.
+This guide explains the difference between domain events, domain intents, and technical events,
+how they relate to each other, when to use each, and how to structure relays for outbound
+communication.
 
 ---
 
-## The Core Distinction
+## The Three Event Types
 
-| | Event | Intent |
-|---|---|---|
-| **Meaning** | Something happened (past fact) | Something must happen next (directed instruction) |
-| **Audience** | The event store — local to the module | A specific external target |
-| **Stored in** | Event store (append-only, permanent) | Intent outbox (durable until delivered) |
-| **Delivery** | Broadcast via event store tail | At-least-once via outbox → relay |
-| **Consumer** | Projectors, event relay | A specific relay → external system |
-| **Examples** | `TimeEntryRegisteredV1` | `PublishTimeEntryRegistered`, `ChargeCustomer` |
+| | Domain Event | Intent | Technical Event |
+|---|---|---|---|
+| **Meaning** | Something happened (past fact) | Something must happen next (directed instruction) | The system did something at an I/O boundary |
+| **Produced by** | Decider | Decider / handler | Adapter (fire-and-forget) |
+| **Stored in** | Event store (append-only, permanent) | Intent outbox (durable until delivered) | Technical event store |
+| **Delivery** | Broadcast via event store tail | At-least-once via outbox → relay | Fire-and-forget, never blocks or fails the main flow |
+| **Consumer** | Projectors, event relay | A specific relay → external system | Monitoring, alerting, analysis |
+| **Examples** | `TimeEntryRegisteredV1` | `PublishTimeEntryRegistered`, `ChargeCustomer` | `CommandAccepted`, `OutboundAdapterFailed` |
 
-Events are **facts about what happened**. They are stored permanently and are the source of truth
-for state reconstruction and projections. They are local to the module by default.
+**Domain events** are facts about what happened in the domain. Permanent, local to the module,
+source of truth for state and projections.
 
-Intents are **instructions for what should happen next**. They are directed at a specific
-external target. The outbox ensures they survive process crashes; the relay delivers them.
+**Intents** are instructions for what must happen next outside the module. Durable, directed,
+at-least-once delivery via outbox and relay.
+
+**Technical events** are observations about what the system did at I/O boundaries — latency,
+failures, acceptance rates. Fire-and-forget. Never written transactionally. Never block the
+main flow. This is the architecture's substitute for logging (there are no log statements).
+
+---
+
+## Choosing Between Intent and Technical Event
+
+This is the most common point of confusion. The question to ask:
+
+> Is this a **business consequence** of a domain decision, or an **operational observation**
+> about system behaviour?
+
+| Scenario | Use |
+|----------|-----|
+| Notify another BC that a time entry was registered | Intent (`PublishTimeEntryRegistered`) |
+| Charge a customer after approval | Intent (`ChargeCustomer`) |
+| Send an approval email to the user | Intent (`NotifyUserOfApproval`) |
+| Record that a command took 120ms and was accepted | Technical event (`CommandAccepted`) |
+| Record that the event store write failed | Technical event (`OutboundAdapterFailed`) |
+| Record that an HTTP request was received | Technical event (`HttpRequestReceived`) |
+| Send weekly aggregated hours to a finance dashboard (business SLA) | Intent |
+| Post per-request latency to Datadog | Technical event |
+
+**Rule of thumb:** if losing it would violate a business contract or SLA → intent. If losing it
+would reduce observability but not affect correctness → technical event.
+
+Technical events are written by adapters at every I/O boundary — inbound and outbound — using
+the `TechnicalEventStore` port. They have no return type: a failed write never propagates.
 
 ---
 
@@ -58,20 +89,22 @@ systems from command handlers.
 
 ## When You Need an Intent
 
-Ask: **does anything outside this module need to react to this decision?**
+Ask: **does anything outside this module need to reliably receive a consequence of this decision?**
 
-| Scenario | Intent? |
-|----------|---------|
-| Notify another bounded context via Kafka | Yes |
-| Call a payment provider | Yes |
-| Send an email or push notification | Yes |
-| Post metrics to a monitoring tool | Yes |
-| Update a read model (projection) | No — the projector tails the event store directly |
-| Reconstruct aggregate state | No — `evolve()` reads events, not intents |
+| Scenario | Use |
+|----------|-----|
+| Notify another bounded context via Kafka | Intent |
+| Call a payment provider | Intent |
+| Send an email or push notification | Intent |
+| Business-critical metric delivery (finance SLA) | Intent |
+| Operational metrics — latency, failure rates, request counts | Technical event |
+| Audit log to an internal observability store | Technical event |
+| Update a read model (projection) | Neither — projector tails the event store directly |
+| Reconstruct aggregate state | Neither — `evolve()` reads domain events |
 
-Even a fire-and-forget call (metrics, audit logging to an external service) goes through the
-outbox. The reason: if the process crashes after writing the event but before calling the
-external service, the intent survives and the relay retries. A direct call would be silently lost.
+The outbox exists for **business-contract delivery**. If the relay fails to deliver, it retries.
+Use it when losing a delivery would be a correctness problem. Use technical events for everything
+that is observability — where dropping an occasional write reduces visibility but not correctness.
 
 ---
 
@@ -133,66 +166,54 @@ No broker knowledge leaks into `core/` or the command handler.
 
 ---
 
-## Example 2: Posting Metrics to a Monitoring Tool
+## Example 2: Observability — Technical Events (Not Intents)
 
-An approval happens. You want to post a metric to Datadog (or any HTTP monitoring endpoint).
-
-**The intent:**
-
-```rust
-pub enum TimeEntryIntent {
-    PublishTimeEntryRegistered { payload: TimeEntryRegisteredV1 },
-    RecordApprovalMetric { user_id: String, duration_ms: u64 },  // new
-}
-```
-
-**The decider produces it alongside the domain event:**
+Operational metrics — latency, acceptance rates, failure counts — are **technical events**, not
+intents. They are written fire-and-forget by the adapter at the I/O boundary. No outbox, no
+relay, no retry.
 
 ```rust
-Decision::Accepted {
-    events: vec![TimeEntryEvent::TimeEntryApprovedV1(payload.clone())],
-    intents: vec![
-        TimeEntryIntent::PublishTimeEntryApproved { payload },
-        TimeEntryIntent::RecordApprovalMetric {
-            user_id: command.user_id.clone(),
-            duration_ms: command.processing_duration_ms,
-        },
-    ],
-}
-```
+// use_cases/register_time_entry/handler.rs
 
-**The relay posts to the monitoring API:**
+pub async fn handle(&self, stream_id: &str, command: RegisterTimeEntry) -> Result<(), ApplicationError> {
+    let start = std::time::Instant::now();
 
-```rust
-// adapters/outbound/relays/record_approval_metric_relay.rs
+    // ... load, fold, decide ...
 
-impl RecordApprovalMetricRelay {
-    pub async fn relay(&self, record: OutboxRecord) {
-        let TimeEntryIntent::RecordApprovalMetric { user_id, duration_ms } = record.intent else {
-            return;
-        };
+    match decide_register(&state, command) {
+        Decision::Accepted { events, intents } => {
+            self.event_store.append(stream_id, stream.version, &events).await?;
+            dispatch_intents(/* ... */).await?;
 
-        let result = self.http_client
-            .post("https://api.datadoghq.com/api/v2/series")
-            .json(&DatadogMetric {
-                idempotency_key: record.id.to_string(),
-                metric: "time_entries.approval_duration_ms",
-                value: duration_ms,
-                tags: vec![format!("user_id:{user_id}")],
-            })
-            .send()
-            .await;
+            // Technical event — fire-and-forget, no return type
+            let _ = self.technical_tx.send(TechnicalEvent::CommandAccepted {
+                command_type: "RegisterTimeEntry".to_string(),
+                event_count: events.len(),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
 
-        match result {
-            Ok(_)  => self.outbox.mark_delivered(record.id).await.ok(),
-            Err(e) => self.outbox.record_failure(record.id, e.to_string()).await.ok(),
-        };
+            Ok(())
+        }
+        Decision::Rejected { reason } => {
+            let _ = self.technical_tx.send(TechnicalEvent::CommandRejected {
+                command_type: "RegisterTimeEntry".to_string(),
+                reason: reason.to_string(),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+
+            Err(ApplicationError::Domain(reason.to_string()))
+        }
     }
 }
 ```
 
-Even though this is fire-and-forget from a business perspective, it goes through the outbox —
-because a direct HTTP call from the command handler would be lost on a crash.
+Technical events flow to a `TechnicalEventStore` — a separate store from the domain event store
+and the intent outbox. The implementation can write to Postgres, emit JSON to stdout for a log
+aggregator (Datadog, Loki), or discard in tests. The adapter never knows which.
+
+**Do not route operational metrics through the intent outbox.** That conflates delivery
+guarantees with observability, adds unnecessary relay complexity, and puts operational noise
+into the business-contract delivery path.
 
 ---
 
@@ -293,25 +314,34 @@ src/modules/time_entries/
   use_cases/
     register_time_entry/
       decide.rs                   ← produces intents inside Decision::Accepted
-      handler.rs                  ← dispatches intents; adds InformCallerOfRejection
+      handler.rs                  ← dispatches intents; writes technical events
 
   adapters/
     outbound/
       intent_outbox.rs            ← dispatch_intents(): intent enum → OutboxRow
       relays/
-        publish_time_entry_registered_relay.rs   ← Kafka
-        record_approval_metric_relay.rs          ← HTTP monitoring
-        charge_customer_relay.rs                 ← payment provider
-        inform_caller_of_rejection_relay.rs      ← notification
+        publish_time_entry_registered_relay.rs   ← Kafka (intent relay)
+        charge_customer_relay.rs                 ← payment provider (intent relay)
+        inform_caller_of_rejection_relay.rs      ← notification (intent relay)
+
+src/shared/infrastructure/
+  technical_event_store/
+    mod.rs                        ← TechnicalEventStore trait (fire-and-forget write)
+    in_memory.rs                  ← dev / test
+    postgres.rs                   ← structured rows, queryable by SQL
+    stdout.rs                     ← newline-delimited JSON for log aggregators
 
 src/shell/
-  main.rs                         ← wires IntentRelayRunner with all relays
+  main.rs                         ← wires IntentRelayRunner + TechnicalEventStore
   workers/
     intent_relay_runner.rs        ← polls outbox, dispatches to per-intent relays
 ```
 
 **One relay per intent type.** Each relay file handles exactly one variant of the intent enum.
 No relay knows about any other relay. No broker topic or external URL appears outside relay files.
+
+Operational metrics and observability go through `TechnicalEventStore` — a completely separate
+path with no outbox, no relay, and no delivery guarantees.
 
 ---
 
