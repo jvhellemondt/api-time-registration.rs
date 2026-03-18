@@ -135,7 +135,7 @@ mod register_time_entry_http_inbound_tests {
 
     #[tokio::test]
     async fn it_should_return_201_with_time_entry_id_on_valid_request() {
-        let body = r#"{"user_id":"u-1","start_time":1000,"end_time":2000,"tags":["Work"],"description":"test"}"#;
+        let body = r#"{"start_time":1000,"end_time":2000}"#;
 
         let response = app(make_test_state())
             .oneshot(
@@ -187,9 +187,25 @@ mod register_time_entry_http_inbound_tests {
     }
 
     #[tokio::test]
+    async fn it_should_return_422_on_missing_user_id() {
+        let body = r#"{"start_time":1000,"end_time":2000}"#;
+
+        let response = app(make_test_state())
+            .oneshot(
+                Request::post("/register-time-entry".to_string().to_string())
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
     async fn it_should_return_500_when_event_store_is_offline() {
-        let body =
-            r#"{"user_id":"u-1","start_time":1000,"end_time":2000,"tags":[],"description":"test"}"#;
+        let body = r#"{"start_time":1000,"end_time":2000}"#;
 
         let response = app(make_offline_event_store_state())
             .oneshot(
