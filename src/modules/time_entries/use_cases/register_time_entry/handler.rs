@@ -7,7 +7,6 @@ use crate::modules::time_entries::use_cases::register_time_entry::decide::decide
 use crate::modules::time_entries::use_cases::register_time_entry::decision::Decision;
 use crate::shared::infrastructure::event_store::{EventStore, EventStoreError};
 use crate::shared::infrastructure::intent_outbox::{DomainOutbox, OutboxError};
-use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -25,14 +24,15 @@ pub enum ApplicationError {
     Unexpected(String),
 }
 
+#[derive(Debug, Clone)]
 pub struct RegisterTimeEntryHandler<TEventStore, TOutbox>
 where
     TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
     TOutbox: DomainOutbox + Send + Sync + 'static,
 {
     topic: String,
-    event_store: Arc<TEventStore>,
-    outbox: Arc<TOutbox>,
+    event_store: TEventStore,
+    outbox: TOutbox,
 }
 
 impl<TEventStore, TOutbox> RegisterTimeEntryHandler<TEventStore, TOutbox>
@@ -40,11 +40,7 @@ where
     TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
     TOutbox: DomainOutbox + Send + Sync + 'static,
 {
-    pub fn new(
-        topic: impl Into<String>,
-        event_store: Arc<TEventStore>,
-        outbox: Arc<TOutbox>,
-    ) -> Self {
+    pub fn new(topic: impl Into<String>, event_store: TEventStore, outbox: TOutbox) -> Self {
         Self {
             topic: topic.into(),
             event_store,
@@ -76,7 +72,7 @@ where
                     .await
                     .map_err(ApplicationError::VersionConflict)?;
                 dispatch_intents(
-                    &*self.outbox,
+                    &self.outbox,
                     stream_id,
                     stream.version,
                     &self.topic,
@@ -106,7 +102,6 @@ mod time_entry_register_handler_tests {
     use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
     use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
-    use std::sync::Arc;
     use tokio::join;
 
     const TOPIC: &str = "time-entries";
@@ -131,14 +126,12 @@ mod time_entry_register_handler_tests {
     #[tokio::test]
     async fn handle_register_appends_and_enqueues(before_each: BeforeEachReturn) {
         let (stream_id, command, event_store, outbox) = before_each;
-        let es = Arc::new(event_store);
-        let ob = Arc::new(outbox);
-        let handler = RegisterTimeEntryHandler::new(TOPIC, es.clone(), ob);
+        let handler = RegisterTimeEntryHandler::new(TOPIC, event_store.clone(), outbox);
         handler
             .handle(stream_id, command)
             .await
             .expect("handle failed");
-        let stream = es.load(stream_id).await.expect("load failed");
+        let stream = event_store.load(stream_id).await.expect("load failed");
         assert_eq!(stream.events.len(), 1);
     }
 
@@ -146,7 +139,7 @@ mod time_entry_register_handler_tests {
     #[tokio::test]
     async fn handle_register_fails_if_time_entry_exists(before_each: BeforeEachReturn) {
         let (stream_id, command, event_store, outbox) = before_each;
-        let handler = RegisterTimeEntryHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
+        let handler = RegisterTimeEntryHandler::new(TOPIC, event_store, outbox);
         handler
             .handle(stream_id, command.clone())
             .await
@@ -162,9 +155,9 @@ mod time_entry_register_handler_tests {
     #[rstest]
     #[tokio::test]
     async fn handle_register_fails_if_event_store_is_offline(before_each: BeforeEachReturn) {
-        let (stream_id, command, mut event_store, outbox) = before_each;
+        let (stream_id, command, event_store, outbox) = before_each;
         event_store.toggle_offline();
-        let handler = RegisterTimeEntryHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
+        let handler = RegisterTimeEntryHandler::new(TOPIC, event_store, outbox);
         let result = handler.handle(stream_id, command).await;
         assert!(result.is_err());
         assert_eq!(
@@ -183,8 +176,8 @@ mod time_entry_register_handler_tests {
     ) {
         let (stream_id, command, event_store, outbox) = before_each;
         event_store.set_delay_append_ms(10);
-        let es = Arc::new(event_store);
-        let ob = Arc::new(outbox);
+        let es = event_store;
+        let ob = outbox;
         let handler1 = RegisterTimeEntryHandler::new(TOPIC, es.clone(), ob.clone());
         let handler2 = RegisterTimeEntryHandler::new(TOPIC, es, ob);
         let (result1, result2) = join!(
@@ -225,7 +218,7 @@ mod time_entry_register_handler_tests {
             payload: serde_json::to_value(event).unwrap(),
         };
         outbox.enqueue(row).await.expect("pre-enqueue failed");
-        let handler = RegisterTimeEntryHandler::new(TOPIC, Arc::new(event_store), Arc::new(outbox));
+        let handler = RegisterTimeEntryHandler::new(TOPIC, event_store, outbox);
         let result = handler.handle(stream_id, command).await;
         assert!(result.is_err());
         assert!(matches!(

@@ -57,7 +57,11 @@ pub async fn handle(
         created_by: "user-from-auth".into(),
     };
 
-    match state.register_handler.handle(&stream_id, command).await {
+    match state
+        .register_time_entry_handler
+        .handle(&stream_id, command)
+        .await
+    {
         Ok(()) => (
             StatusCode::CREATED,
             Json(RegisterTimeEntryResponse {
@@ -79,7 +83,6 @@ mod register_time_entry_http_inbound_tests {
         routing::post,
     };
     use http_body_util::BodyExt;
-    use std::sync::Arc;
     use tower::ServiceExt;
 
     use crate::modules::time_entries::core::events::TimeEntryEvent;
@@ -94,36 +97,33 @@ mod register_time_entry_http_inbound_tests {
     use super::handle;
 
     fn make_test_state() -> AppState {
-        let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
-        let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
-        let register_handler = Arc::new(RegisterTimeEntryHandler::new(
-            "time-entries",
-            event_store.clone(),
-            outbox,
-        ));
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
+        let outbox = InMemoryDomainOutbox::new();
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        let register_time_entry_handler =
+            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
+        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
         AppState {
-            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
-            register_handler,
+            list_time_entries_handler,
+            register_time_entry_handler,
             event_store,
+            outbox,
         }
     }
 
     fn make_offline_event_store_state() -> AppState {
-        let mut event_store = InMemoryEventStore::<TimeEntryEvent>::new();
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
         event_store.toggle_offline();
-        let event_store = Arc::new(event_store);
-        let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
-        let register_handler = Arc::new(RegisterTimeEntryHandler::new(
-            "time-entries",
-            event_store.clone(),
-            outbox,
-        ));
+        let outbox = InMemoryDomainOutbox::new();
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        let register_time_entry_handler =
+            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
+        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
         AppState {
-            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
-            register_handler,
+            list_time_entries_handler,
+            register_time_entry_handler,
             event_store,
+            outbox,
         }
     }
 

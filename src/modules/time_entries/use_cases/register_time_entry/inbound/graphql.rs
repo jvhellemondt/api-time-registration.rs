@@ -35,7 +35,7 @@ impl MutationRoot {
         let stream_id = format!("TimeEntry-{time_entry_id}");
 
         state
-            .register_handler
+            .register_time_entry_handler
             .handle(&stream_id, command)
             .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
