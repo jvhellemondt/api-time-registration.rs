@@ -1,14 +1,17 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
+use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
 use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
-use std::sync::Arc;
+use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub queries: Arc<dyn TimeEntryQueries + Send + Sync>,
-    pub register_handler:
-        Arc<RegisterTimeEntryHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>>,
-    pub event_store: Arc<InMemoryEventStore<TimeEntryEvent>>,
+    pub register_time_entry_handler:
+        RegisterTimeEntryHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
+    pub event_store: InMemoryEventStore<TimeEntryEvent>,
+    pub outbox: InMemoryDomainOutbox,
+    pub list_time_entries_handler:
+        ListTimeEntriesQueryHandler<InMemoryProjectionStore<ListTimeEntriesState>>,
 }

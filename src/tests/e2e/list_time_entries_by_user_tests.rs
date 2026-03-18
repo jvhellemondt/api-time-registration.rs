@@ -4,7 +4,6 @@ use crate::modules::time_entries::use_cases::list_time_entries_by_user::projecto
     ListTimeEntriesProjector, ProjectionTechnicalEvent,
 };
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
 use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
 use crate::shared::infrastructure::event_store::StoredEvent;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
@@ -12,19 +11,16 @@ use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbo
 use crate::shared::infrastructure::projection_store::ProjectionStore;
 use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
 use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
-use std::sync::Arc;
 use tokio::sync::broadcast;
 
 #[tokio::test]
 async fn lists_time_entries_by_user() {
     let (event_tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(64);
-    let store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new_with_sender(
-        event_tx.clone(),
-    ));
-    let outbox = Arc::new(InMemoryDomainOutbox::new());
+    let store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(event_tx.clone());
+    let outbox = InMemoryDomainOutbox::new();
 
-    let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
-    let query_handler = Arc::new(ListTimeEntriesQueryHandler::new(projection_store.clone()));
+    let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+    let query_handler = ListTimeEntriesQueryHandler::new(projection_store.clone());
 
     let (tech_tx, _) = broadcast::channel::<ProjectionTechnicalEvent>(16);
     let projector = ListTimeEntriesProjector::new(

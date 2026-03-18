@@ -26,12 +26,10 @@ async fn main() -> anyhow::Result<()> {
     fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
     let (event_tx, _) = tokio::sync::broadcast::channel::<StoredEvent<TimeEntryEvent>>(1024);
-    let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new_with_sender(
-        event_tx.clone(),
-    ));
-    let outbox = Arc::new(InMemoryDomainOutbox::new());
+    let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(event_tx.clone());
+    let outbox = InMemoryDomainOutbox::new();
 
-    let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
+    let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
 
     let (tech_tx, _) = tokio::sync::broadcast::channel::<ProjectionTechnicalEvent>(256);
     let projector = ListTimeEntriesProjector::new(
@@ -43,18 +41,16 @@ async fn main() -> anyhow::Result<()> {
     let receiver = event_tx.subscribe();
     projector_runner::spawn(projector, receiver);
 
-    let query_handler = Arc::new(ListTimeEntriesQueryHandler::new(projection_store));
+    let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
 
-    let register_handler = Arc::new(RegisterTimeEntryHandler::new(
-        "time-entries.v1",
-        event_store.clone(),
-        outbox,
-    ));
+    let register_time_entry_handler =
+        RegisterTimeEntryHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
 
     let state = AppState {
-        queries: query_handler,
-        register_handler,
+        list_time_entries_handler,
+        register_time_entry_handler,
         event_store,
+        outbox,
     };
 
     let http_router = shell_http::router(state.clone());
