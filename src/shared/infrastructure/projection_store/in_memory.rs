@@ -1,15 +1,22 @@
 use super::ProjectionStore;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
-struct Inner<P> {
-    state: Option<P>,
+struct InnerState<Projection> {
+    state: Option<Projection>,
     checkpoint: u64,
     schema_version: Option<u32>,
 }
 
-pub struct InMemoryProjectionStore<P: Clone + Send + Sync + 'static> {
-    inner: RwLock<Inner<P>>,
-    is_offline: bool,
+struct Inner<Projection: Clone + Send + Sync + 'static> {
+    state: RwLock<InnerState<Projection>>,
+    is_offline: AtomicBool,
+}
+
+#[derive(Clone)]
+pub struct InMemoryProjectionStore<Projection: Clone + Send + Sync + 'static> {
+    inner: Arc<Inner<Projection>>,
 }
 
 impl<P: Clone + Send + Sync + 'static> Default for InMemoryProjectionStore<P> {
@@ -21,66 +28,72 @@ impl<P: Clone + Send + Sync + 'static> Default for InMemoryProjectionStore<P> {
 impl<P: Clone + Send + Sync + 'static> InMemoryProjectionStore<P> {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(Inner {
-                state: None,
-                checkpoint: 0,
-                schema_version: None,
+            inner: Arc::new(Inner {
+                state: RwLock::new(InnerState {
+                    state: None,
+                    checkpoint: 0,
+                    schema_version: None,
+                }),
+                is_offline: AtomicBool::new(false),
             }),
-            is_offline: false,
         }
     }
 
     pub fn toggle_offline(&mut self) {
-        self.is_offline = !self.is_offline;
+        self.inner.is_offline.fetch_xor(true, Ordering::SeqCst);
+    }
+
+    pub fn is_offline(&self) -> bool {
+        self.inner.is_offline.load(Ordering::SeqCst)
     }
 }
 
 #[async_trait::async_trait]
 impl<P: Clone + Send + Sync + 'static> ProjectionStore<P> for InMemoryProjectionStore<P> {
     async fn state(&self) -> anyhow::Result<Option<P>> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        Ok(self.inner.read().await.state.clone())
+        Ok(self.inner.state.read().await.state.clone())
     }
 
     async fn checkpoint(&self) -> anyhow::Result<u64> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        Ok(self.inner.read().await.checkpoint)
+        Ok(self.inner.state.read().await.checkpoint)
     }
 
     async fn schema_version(&self) -> anyhow::Result<Option<u32>> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        Ok(self.inner.read().await.schema_version)
+        Ok(self.inner.state.read().await.schema_version)
     }
 
     async fn save(&self, state: P, checkpoint: u64) -> anyhow::Result<()> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.state.write().await;
         inner.state = Some(state);
         inner.checkpoint = checkpoint;
         Ok(())
     }
 
     async fn save_schema_version(&self, version: u32) -> anyhow::Result<()> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        self.inner.write().await.schema_version = Some(version);
+        self.inner.state.write().await.schema_version = Some(version);
         Ok(())
     }
 
     async fn clear(&self) -> anyhow::Result<()> {
-        if self.is_offline {
+        if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
-        let mut inner = self.inner.write().await;
+        let mut inner = self.inner.state.write().await;
         inner.state = None;
         inner.checkpoint = 0;
         Ok(())

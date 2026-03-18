@@ -1,16 +1,24 @@
 use crate::shared::infrastructure::intent_outbox::{DomainOutbox, OutboxError, OutboxRow};
 use std::collections::HashSet;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[derive(Default)]
-pub struct InMemoryDomainOutbox {
+pub struct Inner {
     pub rows: Mutex<Vec<OutboxRow>>,
     seen: Mutex<HashSet<(String, i64)>>,
 }
 
+#[derive(Clone)]
+pub struct InMemoryDomainOutbox {
+    inner: Arc<Inner>,
+}
+
 impl InMemoryDomainOutbox {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            inner: Arc::new(Inner::default()),
+        }   
     }
 }
 
@@ -19,7 +27,7 @@ impl DomainOutbox for InMemoryDomainOutbox {
     async fn enqueue(&self, row: OutboxRow) -> Result<(), OutboxError> {
         let key = (row.stream_id.clone(), row.stream_version);
         {
-            let mut s = self.seen.lock().await;
+            let mut s = self.inner.seen.lock().await;
             if !s.insert(key) {
                 return Err(OutboxError::Duplicate {
                     stream_id: row.stream_id,
@@ -27,7 +35,7 @@ impl DomainOutbox for InMemoryDomainOutbox {
                 });
             }
         }
-        self.rows.lock().await.push(row);
+        self.inner.rows.lock().await.push(row);
         Ok(())
     }
 }
