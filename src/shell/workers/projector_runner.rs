@@ -18,3 +18,62 @@ pub fn spawn<TStore>(
 {
     tokio::spawn(projector.run(receiver));
 }
+
+#[cfg(test)]
+mod project_runner {
+    use super::*;
+    use crate::modules::time_entries::core::events::TimeEntryEvent;
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+        ListTimeEntriesState, SCHEMA_VERSION,
+    };
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
+        ListTimeEntriesProjector, ProjectionTechnicalEvent,
+    };
+    use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+    use crate::shared::infrastructure::event_store::StoredEvent;
+    use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
+    use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+    use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
+    use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+    use rstest::rstest;
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_spawn_projector_and_apply_events() {
+        let (event_tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(1024);
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(event_tx.clone());
+        let outbox = InMemoryDomainOutbox::new();
+
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        projection_store
+            .save_schema_version(SCHEMA_VERSION)
+            .await
+            .unwrap();
+
+        let (tech_tx, _) = broadcast::channel::<ProjectionTechnicalEvent>(256);
+        let projector = ListTimeEntriesProjector::new(
+            "list_time_entries_by_user",
+            projection_store.clone(),
+            event_store.clone(),
+            tech_tx,
+        );
+        let receiver = event_tx.subscribe();
+        spawn(projector, receiver);
+
+        let handler = RegisterTimeEntryHandler::new("t", event_store, outbox);
+        handler
+            .handle(
+                "TimeEntry-1",
+                RegisterTimeEntryBuilder::new()
+                    .time_entry_id("te-1".to_string())
+                    .build(),
+            )
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let state = projection_store.state().await.unwrap().unwrap();
+        assert_eq!(state.rows.len(), 1);
+    }
+}
