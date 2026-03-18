@@ -16,7 +16,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 updated_at: e.created_at,
                 updated_by: e.created_by,
                 deleted_at: None,
-                last_event_id: None,
+                last_event_id: Box::new(None),
             }
         }
         (state, _) => state,
@@ -67,7 +67,7 @@ mod time_entry_evolve_tests {
                 assert_eq!(updated_at, registered_event.created_at);
                 assert_eq!(updated_by, registered_event.created_by);
                 assert_eq!(deleted_at, None);
-                assert_eq!(last_event_id, None);
+                assert_eq!(last_event_id, Box::new(None));
             }
             _ => panic!("expected Registered state"),
         }

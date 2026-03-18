@@ -176,14 +176,14 @@ mod time_entry_in_memory_event_store_tests {
         let store = InMemoryEventStore::<DomainEvent>::new();
         let event = DomainEvent { name: "Teddy Test" };
         store
-            .append("1", 0, &vec![event])
+            .append("1", 0, &[event])
             .await
             .expect("expected to append");
         let stream = store.load("1").await.expect("expected to load");
-        assert_eq!(store.is_offline(), false);
+        assert!(!store.is_offline());
         assert_eq!(stream.version, 1);
         assert_eq!(stream.events.len(), 1);
-        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test");
+        assert_eq!(stream.events.first().unwrap().name, "Teddy Test");
     }
 
     #[rstest]
@@ -193,13 +193,13 @@ mod time_entry_in_memory_event_store_tests {
         store.set_delay_append_ms(100);
         let event = DomainEvent { name: "Teddy Test" };
         store
-            .append("1", 0, &vec![event])
+            .append("1", 0, &[event])
             .await
             .expect("expected to append");
         let stream = store.load("1").await.expect("expected to load");
         assert_eq!(stream.version, 1);
         assert_eq!(stream.events.len(), 1);
-        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test");
+        assert_eq!(stream.events.first().unwrap().name, "Teddy Test");
     }
 
     #[rstest]
@@ -224,7 +224,7 @@ mod time_entry_in_memory_event_store_tests {
         let stream = store.load("1").await.expect("expected to load");
         assert_eq!(stream.version, 3);
         assert_eq!(stream.events.len(), 3);
-        assert_eq!(stream.events.get(0).unwrap().name, "Teddy Test_1");
+        assert_eq!(stream.events.first().unwrap().name, "Teddy Test_1");
         assert_eq!(stream.events.get(1).unwrap().name, "Teddy Test_2");
         assert_eq!(stream.events.get(2).unwrap().name, "Teddy Test_3");
     }
@@ -234,7 +234,7 @@ mod time_entry_in_memory_event_store_tests {
     async fn it_should_fail_to_append_if_the_wrong_version_is_expected() {
         let store = InMemoryEventStore::<DomainEvent>::new();
         let event = DomainEvent { name: "Teddy Test" };
-        let result = store.append("1", 1, &vec![event]).await;
+        let result = store.append("1", 1, &[event]).await;
         assert!(result.is_err());
         match result {
             Err(EventStoreError::VersionMismatch { expected, actual }) => {

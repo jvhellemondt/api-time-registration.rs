@@ -9,7 +9,7 @@ pub struct Inner {
     seen: Mutex<HashSet<(String, i64)>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct InMemoryDomainOutbox {
     inner: Arc<Inner>,
 }

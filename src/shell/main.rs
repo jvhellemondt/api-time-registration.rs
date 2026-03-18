@@ -2,7 +2,6 @@ use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{Extension, Router, routing::get};
 use std::net::SocketAddr;
-use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{EnvFilter, fmt};
 

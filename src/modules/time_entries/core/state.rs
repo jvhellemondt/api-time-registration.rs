@@ -13,7 +13,7 @@ pub enum TimeEntryState {
         updated_at: i64,
         updated_by: String,
         deleted_at: Option<i64>,
-        last_event_id: Option<String>,
+        last_event_id: Box<Option<String>>,
     },
 }
 
@@ -21,15 +21,6 @@ pub enum TimeEntryState {
 mod time_entry_state_tests {
     use super::*;
     use rstest::rstest;
-
-    #[rstest]
-    fn it_should_create_the_blank_state() {
-        let state = TimeEntryState::None;
-        match state {
-            TimeEntryState::None => assert!(true),
-            _ => panic!("expected None state"),
-        }
-    }
 
     #[rstest]
     fn it_should_create_the_registered_state() {
@@ -45,7 +36,7 @@ mod time_entry_state_tests {
             updated_at: 1_700_000_000_000i64,
             updated_by: "user-fixed-0001".to_string(),
             deleted_at: None,
-            last_event_id: None,
+            last_event_id: Box::new(None),
         };
         match state {
             TimeEntryState::Registered {
