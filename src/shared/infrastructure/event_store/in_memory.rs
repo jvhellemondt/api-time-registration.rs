@@ -2,8 +2,8 @@ use crate::shared::infrastructure::event_store::{
     EventStore, EventStoreError, LoadedStream, StoredEvent,
 };
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::sync::RwLock;
 
@@ -71,7 +71,10 @@ impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
         self.inner.delay_append_ms.store(ms, Ordering::SeqCst);
     }
 
-    pub async fn load_all_from(&self, from: u64) -> Result<Vec<StoredEvent<Event>>, EventStoreError> {
+    pub async fn load_all_from(
+        &self,
+        from: u64,
+    ) -> Result<Vec<StoredEvent<Event>>, EventStoreError> {
         if self.inner.is_offline.load(Ordering::SeqCst) {
             return Err(EventStoreError::Backend("Event store offline".to_string()));
         }
@@ -83,7 +86,6 @@ impl<Event: Clone + Send + Sync + 'static> InMemoryEventStore<Event> {
             .collect())
     }
 }
-
 
 #[async_trait::async_trait]
 impl<Event> EventStore<Event> for InMemoryEventStore<Event>

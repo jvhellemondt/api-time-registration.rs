@@ -18,7 +18,7 @@ impl InMemoryDomainOutbox {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Inner::default()),
-        }   
+        }
     }
 }
 

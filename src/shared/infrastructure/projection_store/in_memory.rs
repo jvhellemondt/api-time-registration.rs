@@ -1,6 +1,6 @@
 use super::ProjectionStore;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock;
 
 struct InnerState<Projection> {
