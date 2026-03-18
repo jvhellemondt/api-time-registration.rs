@@ -21,7 +21,7 @@ pub async fn handle(
     Query(params): Query<ListTimeEntriesParams>,
 ) -> impl IntoResponse {
     match state
-        .queries
+        .list_time_entries_handler
         .list_by_user_id(
             &params.user_id,
             params.offset.unwrap_or(0),
@@ -44,66 +44,48 @@ mod list_time_entries_by_user_http_inbound_tests {
         routing::get,
     };
     use http_body_util::BodyExt;
-    use std::sync::Arc;
     use tower::ServiceExt;
 
+    use super::handle;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
-        ListTimeEntriesState, TimeEntryView,
-    };
+    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
     use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
     use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::shell::state::AppState;
 
-    use super::handle;
-
-    struct FailingQueries;
-
-    #[async_trait::async_trait]
-    impl TimeEntryQueries for FailingQueries {
-        async fn list_by_user_id(
-            &self,
-            _user_id: &str,
-            _offset: u64,
-            _limit: u64,
-            _sort_by_start_time_desc: bool,
-        ) -> anyhow::Result<Vec<TimeEntryView>> {
-            Err(anyhow::anyhow!("queries offline"))
-        }
-    }
-
     fn make_failing_queries_state() -> AppState {
-        let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
-        let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let register_handler = Arc::new(RegisterTimeEntryHandler::new(
-            "time-entries",
-            event_store.clone(),
-            outbox,
-        ));
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
+        event_store.toggle_offline();
+        let outbox = InMemoryDomainOutbox::new();
+        let mut projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        projection_store.toggle_offline();
+        let register_time_entry_handler =
+            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
+        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
         AppState {
-            queries: Arc::new(FailingQueries),
-            register_handler,
+            list_time_entries_handler,
+            register_time_entry_handler,
             event_store,
+            outbox,
         }
     }
 
     fn make_test_state() -> AppState {
-        let event_store = Arc::new(InMemoryEventStore::<TimeEntryEvent>::new());
-        let outbox = Arc::new(InMemoryDomainOutbox::new());
-        let projection_store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
-        let register_handler = Arc::new(RegisterTimeEntryHandler::new(
-            "time-entries",
-            event_store.clone(),
-            outbox,
-        ));
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
+        event_store.toggle_offline();
+        let outbox = InMemoryDomainOutbox::new();
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        let register_time_entry_handler =
+            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
+        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
         AppState {
-            queries: Arc::new(ListTimeEntriesQueryHandler::new(projection_store)),
-            register_handler,
+            list_time_entries_handler,
+            register_time_entry_handler,
             event_store,
+            outbox,
         }
     }
 

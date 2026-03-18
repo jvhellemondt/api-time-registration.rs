@@ -1,32 +1,30 @@
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
     ListTimeEntriesState, TimeEntryView,
 };
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries_port::TimeEntryQueries;
 use crate::shared::infrastructure::projection_store::ProjectionStore;
-use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct ListTimeEntriesQueryHandler<TStore>
 where
     TStore: ProjectionStore<ListTimeEntriesState> + Send + Sync + 'static,
 {
-    store: Arc<TStore>,
+    store: TStore,
 }
 
 impl<TStore> ListTimeEntriesQueryHandler<TStore>
 where
     TStore: ProjectionStore<ListTimeEntriesState> + Send + Sync + 'static,
 {
-    pub fn new(store: Arc<TStore>) -> Self {
+    pub fn new(store: TStore) -> Self {
         Self { store }
     }
 }
 
-#[async_trait::async_trait]
-impl<TStore> TimeEntryQueries for ListTimeEntriesQueryHandler<TStore>
+impl<TStore> ListTimeEntriesQueryHandler<TStore>
 where
     TStore: ProjectionStore<ListTimeEntriesState> + Send + Sync + 'static,
 {
-    async fn list_by_user_id(
+    pub async fn list_by_user_id(
         &self,
         user_id: &str,
         offset: u64,
@@ -100,7 +98,7 @@ mod list_time_entries_query_handler_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_return_empty_list_when_no_entries() {
-        let store = Arc::new(InMemoryProjectionStore::<ListTimeEntriesState>::new());
+        let store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 0, 10, true).await.unwrap();
         assert!(result.is_empty());
@@ -110,7 +108,7 @@ mod list_time_entries_query_handler_tests {
     #[tokio::test]
     async fn it_should_filter_by_user_id() {
         let rows = vec![make_row("u1", "te1", 1000), make_row("u2", "te2", 2000)];
-        let store = Arc::new(store_with_rows(rows).await);
+        let store = store_with_rows(rows).await;
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 0, 10, false).await.unwrap();
         assert_eq!(result.len(), 1);
@@ -125,7 +123,7 @@ mod list_time_entries_query_handler_tests {
             make_row("u1", "te2", 3000),
             make_row("u1", "te3", 2000),
         ];
-        let store = Arc::new(store_with_rows(rows).await);
+        let store = store_with_rows(rows).await;
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 0, 10, true).await.unwrap();
         assert_eq!(result[0].start_time, 3000);
@@ -137,7 +135,7 @@ mod list_time_entries_query_handler_tests {
     #[tokio::test]
     async fn it_should_sort_ascending_by_start_time() {
         let rows = vec![make_row("u1", "te1", 3000), make_row("u1", "te2", 1000)];
-        let store = Arc::new(store_with_rows(rows).await);
+        let store = store_with_rows(rows).await;
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 0, 10, false).await.unwrap();
         assert_eq!(result[0].start_time, 1000);
@@ -152,7 +150,7 @@ mod list_time_entries_query_handler_tests {
             make_row("u1", "te2", 2000),
             make_row("u1", "te3", 3000),
         ];
-        let store = Arc::new(store_with_rows(rows).await);
+        let store = store_with_rows(rows).await;
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 1, 1, false).await.unwrap();
         assert_eq!(result.len(), 1);
@@ -163,7 +161,7 @@ mod list_time_entries_query_handler_tests {
     #[tokio::test]
     async fn it_should_return_empty_when_offset_exceeds_total() {
         let rows = vec![make_row("u1", "te1", 1000)];
-        let store = Arc::new(store_with_rows(rows).await);
+        let store = store_with_rows(rows).await;
         let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 10, 5, false).await.unwrap();
         assert!(result.is_empty());
@@ -174,7 +172,7 @@ mod list_time_entries_query_handler_tests {
     async fn it_should_propagate_store_error() {
         let mut store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         store.toggle_offline();
-        let handler = ListTimeEntriesQueryHandler::new(Arc::new(store));
+        let handler = ListTimeEntriesQueryHandler::new(store);
         let result = handler.list_by_user_id("u1", 0, 10, false).await;
         assert!(result.is_err());
     }

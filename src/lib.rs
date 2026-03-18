@@ -37,7 +37,6 @@ pub mod modules {
                 pub mod projection;
                 pub mod projector;
                 pub mod queries;
-                pub mod queries_port;
             }
         }
         pub mod adapters {

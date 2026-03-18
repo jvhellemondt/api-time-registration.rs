@@ -49,8 +49,8 @@ impl QueryRoot {
         sort_desc: Option<bool>,
     ) -> GqlResult<Vec<GqlTimeEntry>> {
         let state = context.data_unchecked::<AppState>();
-        let list = state
-            .queries
+        let list: Vec<TimeEntryView> = state
+            .list_time_entries_handler
             .list_by_user_id(
                 &user_id,
                 offset.unwrap_or(0).max(0) as u64,
