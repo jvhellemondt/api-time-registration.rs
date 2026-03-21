@@ -1,10 +1,12 @@
+use crate::shared::core::primitives::Tag;
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct TimeEntryRegisteredV1 {
     pub time_entry_id: String,
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
@@ -13,6 +15,7 @@ pub struct TimeEntryRegisteredV1 {
 #[cfg(test)]
 mod time_entry_registered_event_tests {
     use super::*;
+    use crate::shared::core::primitives::Tag;
     use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
     use rstest::{fixture, rstest};
     use std::fs;
@@ -26,7 +29,14 @@ mod time_entry_registered_event_tests {
     fn it_should_create_the_registered_event(registered_event: TimeEntryRegisteredV1) {
         assert_eq!(registered_event.time_entry_id, "te-fixed-0001");
         assert_eq!(registered_event.user_id, "user-fixed-0001");
-        assert_eq!(registered_event.tags, vec!["Work".to_string()]);
+        assert_eq!(
+            registered_event.tags,
+            vec![Tag {
+                tag_id: "tag-fixed-0001".to_string(),
+                name: "Work".to_string(),
+                color: "#000000".to_string(),
+            }]
+        );
     }
 
     #[fixture]

@@ -1,3 +1,5 @@
+use crate::shared::core::primitives::Tag;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeEntryState {
     None,
@@ -6,7 +8,7 @@ pub enum TimeEntryState {
         user_id: String,
         start_time: i64,
         end_time: i64,
-        tags: Vec<String>,
+        tags: Vec<Tag>,
         description: String,
         created_at: i64,
         created_by: String,
@@ -20,16 +22,22 @@ pub enum TimeEntryState {
 #[cfg(test)]
 mod time_entry_state_tests {
     use super::*;
+    use crate::shared::core::primitives::Tag;
     use rstest::rstest;
 
     #[rstest]
     fn it_should_create_the_registered_state() {
+        let tag = Tag {
+            tag_id: "tag-fixed-0001".to_string(),
+            name: "Work".to_string(),
+            color: "#000000".to_string(),
+        };
         let state = TimeEntryState::Registered {
             time_entry_id: "te-fixed-0001".to_string(),
             user_id: "user-fixed-0001".to_string(),
             start_time: 1_700_000_000_000i64,
             end_time: 1_700_000_360_000i64,
-            tags: vec!["Work".to_string()],
+            tags: vec![tag.clone()],
             description: "This is a test".to_string(),
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
@@ -47,7 +55,7 @@ mod time_entry_state_tests {
             } => {
                 assert_eq!(time_entry_id, "te-fixed-0001");
                 assert_eq!(user_id, "user-fixed-0001");
-                assert_eq!(tags, vec!["Work".to_string()]);
+                assert_eq!(tags, vec![tag]);
             }
             _ => panic!("expected Registered state"),
         }

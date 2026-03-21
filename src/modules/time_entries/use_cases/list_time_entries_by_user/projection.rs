@@ -1,3 +1,5 @@
+use crate::shared::core::primitives::Tag;
+
 pub const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Default)]
@@ -11,7 +13,7 @@ pub struct TimeEntryRow {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
@@ -27,7 +29,7 @@ pub struct TimeEntryView {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tags: Vec<Tag>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
