@@ -1,0 +1,9 @@
+{
+  "tag_id": "tag-fixed-0001",
+  "tenant_id": "tenant-hardcoded",
+  "name": "Work",
+  "color": "#FFB3BA",
+  "description": null,
+  "created_at": 1700000000000,
+  "created_by": "user-fixed-0001"
+}

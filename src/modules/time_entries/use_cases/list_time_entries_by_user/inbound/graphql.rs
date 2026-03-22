@@ -9,7 +9,7 @@ pub struct GqlTimeEntry {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tag_ids: Vec<String>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
@@ -25,7 +25,7 @@ impl From<TimeEntryView> for GqlTimeEntry {
             user_id: v.user_id,
             start_time: v.start_time,
             end_time: v.end_time,
-            tags: v.tags,
+            tag_ids: v.tag_ids,
             description: v.description,
             created_at: v.created_at,
             created_by: v.created_by,
@@ -36,10 +36,11 @@ impl From<TimeEntryView> for GqlTimeEntry {
     }
 }
 
-pub struct QueryRoot;
+#[derive(Default)]
+pub struct TimeEntryQueries;
 
 #[Object]
-impl QueryRoot {
+impl TimeEntryQueries {
     async fn list_time_entries_by_user_id(
         &self,
         context: &Context<'_>,

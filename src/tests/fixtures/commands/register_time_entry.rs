@@ -13,7 +13,7 @@ pub struct RegisterTimeEntryDto {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tag_ids: Vec<String>,
     pub description: String,
 }
 
@@ -41,7 +41,7 @@ impl RegisterTimeEntryBuilder {
                 user_id: dto.user_id,
                 start_time: dto.start_time,
                 end_time: dto.end_time,
-                tags: dto.tags,
+                tag_ids: dto.tag_ids,
                 description: dto.description,
                 created_by: "user-fixed-0001".to_string(),
                 created_at: 1700000000000,
@@ -69,8 +69,8 @@ impl RegisterTimeEntryBuilder {
         self
     }
 
-    pub fn tags(mut self, v: Vec<String>) -> Self {
-        self.inner.tags = v;
+    pub fn tag_ids(mut self, v: Vec<String>) -> Self {
+        self.inner.tag_ids = v;
         self
     }
 
@@ -106,7 +106,7 @@ mod time_entry_register_time_entry_builder_tests {
             user_id: "user-fixed-0001".to_string(),
             start_time: 1700000000000,
             end_time: 1700000360000,
-            tags: vec!["Work".to_string()],
+            tag_ids: vec!["Work".to_string()],
             description: "This is a test".to_string(),
         };
 
@@ -115,7 +115,7 @@ mod time_entry_register_time_entry_builder_tests {
         assert_eq!(built.user_id, dto.user_id);
         assert_eq!(built.start_time, dto.start_time);
         assert_eq!(built.end_time, dto.end_time);
-        assert_eq!(built.tags, dto.tags);
+        assert_eq!(built.tag_ids, dto.tag_ids);
         assert_eq!(built.description, dto.description);
         assert_eq!(built.created_by, "user-fixed-0001");
         assert_eq!(built.created_at, 1_700_000_000_000i64);
@@ -128,7 +128,7 @@ mod time_entry_register_time_entry_builder_tests {
             .user_id("uid-456")
             .start_time(1111)
             .end_time(2222)
-            .tags(vec!["a".into(), "b".into()])
+            .tag_ids(vec!["a".into(), "b".into()])
             .description("desc")
             .created_by("tester")
             .created_at(3333)
@@ -138,7 +138,7 @@ mod time_entry_register_time_entry_builder_tests {
         assert_eq!(custom.user_id, "uid-456");
         assert_eq!(custom.start_time, 1111);
         assert_eq!(custom.end_time, 2222);
-        assert_eq!(custom.tags, vec!["a", "b"]);
+        assert_eq!(custom.tag_ids, vec!["a", "b"]);
         assert_eq!(custom.description, "desc");
         assert_eq!(custom.created_by, "tester");
         assert_eq!(custom.created_at, 3333);

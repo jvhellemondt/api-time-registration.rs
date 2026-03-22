@@ -4,7 +4,7 @@ pub struct RegisterTimeEntry {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tag_ids: Vec<String>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
@@ -25,6 +25,6 @@ mod time_entry_registered_command_tests {
     fn it_should_create_the_command(register_command: RegisterTimeEntry) {
         assert_eq!(register_command.time_entry_id, "te-fixed-0001");
         assert_eq!(register_command.user_id, "user-fixed-0001");
-        assert_eq!(register_command.tags, vec!["Work".to_string()]);
+        assert_eq!(register_command.tag_ids, vec!["Work".to_string()]);
     }
 }

@@ -5,3 +5,4 @@ pub mod events {
 pub mod commands {
     pub mod register_time_entry;
 }
+pub mod tags;

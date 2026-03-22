@@ -9,7 +9,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 user_id: e.user_id,
                 start_time: e.start_time,
                 end_time: e.end_time,
-                tags: e.tags,
+                tag_ids: e.tag_ids,
                 description: e.description,
                 created_at: e.created_at,
                 created_by: e.created_by.clone(),
@@ -47,7 +47,7 @@ mod time_entry_evolve_tests {
                 user_id,
                 start_time,
                 end_time,
-                tags,
+                tag_ids,
                 description,
                 created_at,
                 created_by,
@@ -60,7 +60,7 @@ mod time_entry_evolve_tests {
                 assert_eq!(user_id, registered_event.user_id);
                 assert_eq!(start_time, registered_event.start_time);
                 assert_eq!(end_time, registered_event.end_time);
-                assert_eq!(tags, registered_event.tags);
+                assert_eq!(tag_ids, registered_event.tag_ids);
                 assert_eq!(description, registered_event.description);
                 assert_eq!(created_at, registered_event.created_at);
                 assert_eq!(created_by, registered_event.created_by);
@@ -84,7 +84,7 @@ mod time_entry_evolve_tests {
             user_id: "user-fixed-0001".into(),
             start_time: 1_700_000_000_000,
             end_time: 1_700_000_360_000,
-            tags: vec!["Work".into()],
+            tag_ids: vec!["Work".into()],
             description: "This is a test".into(),
             created_at: 1_700_000_000_000,
             created_by: "user-fixed-0001".into(),
