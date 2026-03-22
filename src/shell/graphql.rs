@@ -7,17 +7,19 @@ use crate::modules::tags::use_cases::set_tag_color::inbound::graphql::SetTagColo
 use crate::modules::tags::use_cases::set_tag_description::inbound::graphql::SetTagDescriptionMutation;
 use crate::modules::tags::use_cases::set_tag_name::inbound::graphql::SetTagNameMutation;
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound::graphql::TimeEntryQueries;
-use crate::modules::time_entries::use_cases::register_time_entry::inbound::graphql::TimeEntryMutations;
+use crate::modules::time_entries::use_cases::set_ended_at::inbound::graphql::SetEndedAtMutation;
+use crate::modules::time_entries::use_cases::set_started_at::inbound::graphql::SetStartedAtMutation;
 pub use crate::shell::state::AppState;
 
 #[derive(MergedObject, Default)]
 pub struct MutationRoot(
-    TimeEntryMutations,
     CreateTagMutation,
     DeleteTagMutation,
     SetTagNameMutation,
     SetTagColorMutation,
     SetTagDescriptionMutation,
+    SetStartedAtMutation,
+    SetEndedAtMutation,
 );
 
 #[derive(MergedObject, Default)]

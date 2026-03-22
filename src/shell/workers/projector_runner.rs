@@ -29,12 +29,12 @@ mod project_runner {
     use crate::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
         ListTimeEntriesProjector, ProjectionTechnicalEvent,
     };
-    use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+    use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
     use crate::shared::infrastructure::event_store::StoredEvent;
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
-    use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+    use crate::tests::fixtures::commands::set_started_at::SetStartedAtBuilder;
     use rstest::rstest;
 
     #[rstest]
@@ -60,11 +60,11 @@ mod project_runner {
         let receiver = event_tx.subscribe();
         spawn(projector, receiver);
 
-        let handler = RegisterTimeEntryHandler::new("t", event_store, outbox);
+        let handler = SetStartedAtHandler::new("t", event_store, outbox);
         handler
             .handle(
-                "TimeEntry-1",
-                RegisterTimeEntryBuilder::new()
+                "TimeEntry-te-1",
+                SetStartedAtBuilder::new()
                     .time_entry_id("te-1".to_string())
                     .build(),
             )

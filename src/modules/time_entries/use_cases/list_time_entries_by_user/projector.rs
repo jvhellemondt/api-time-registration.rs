@@ -151,9 +151,55 @@ where
         ) {
             match mutation {
                 Mutation::Upsert(row) => {
-                    state
-                        .rows
-                        .insert((row.user_id.clone(), row.time_entry_id.clone()), row);
+                    state.rows.insert(row.time_entry_id.clone(), row);
+                }
+                Mutation::SetStartedAt {
+                    time_entry_id,
+                    started_at,
+                    updated_at,
+                    updated_by,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&time_entry_id) {
+                        row.started_at = Some(started_at);
+                        row.updated_at = updated_at;
+                        row.updated_by = updated_by;
+                        row.last_event_id = Some(last_event_id);
+                    }
+                }
+                Mutation::SetEndedAt {
+                    time_entry_id,
+                    ended_at,
+                    updated_at,
+                    updated_by,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&time_entry_id) {
+                        row.ended_at = Some(ended_at);
+                        row.updated_at = updated_at;
+                        row.updated_by = updated_by;
+                        row.last_event_id = Some(last_event_id);
+                    }
+                }
+                Mutation::SetRegistered {
+                    time_entry_id,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&time_entry_id) {
+                        row.status =
+                            crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryStatus::Registered;
+                        row.last_event_id = Some(last_event_id);
+                    }
+                }
+                Mutation::SetDeleted {
+                    time_entry_id,
+                    deleted_at,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&time_entry_id) {
+                        row.deleted_at = Some(deleted_at);
+                        row.last_event_id = Some(last_event_id);
+                    }
                 }
             }
         }
@@ -167,19 +213,40 @@ where
 #[cfg(test)]
 mod list_time_entries_projector_tests {
     use super::*;
-    use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+    use crate::modules::time_entries::core::events::v1::time_entry_deleted::TimeEntryDeletedV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_end_set::TimeEntryEndSetV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_start_set::TimeEntryStartSetV1;
+    use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
+    use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
+    use crate::shared::infrastructure::event_store::EventStore;
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
-    use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+    use crate::tests::fixtures::commands::set_ended_at::SetEndedAtBuilder;
+    use crate::tests::fixtures::commands::set_started_at::SetStartedAtBuilder;
     use rstest::rstest;
 
-    async fn register_one_entry(event_store: InMemoryEventStore<TimeEntryEvent>) {
+    async fn initiate_and_register(
+        event_store: InMemoryEventStore<TimeEntryEvent>,
+        time_entry_id: &str,
+        stream_id: &str,
+    ) {
         let outbox = InMemoryDomainOutbox::new();
-        RegisterTimeEntryHandler::new("t", event_store, outbox)
+        SetStartedAtHandler::new("t", event_store.clone(), outbox.clone())
             .handle(
-                "TimeEntry-abc",
-                RegisterTimeEntryBuilder::new()
-                    .time_entry_id("te-abc".to_string())
+                stream_id,
+                SetStartedAtBuilder::new()
+                    .time_entry_id(time_entry_id.to_string())
+                    .build(),
+            )
+            .await
+            .unwrap();
+        SetEndedAtHandler::new("t", event_store, outbox)
+            .handle(
+                stream_id,
+                SetEndedAtBuilder::new()
+                    .time_entry_id(time_entry_id.to_string())
                     .build(),
             )
             .await
@@ -190,7 +257,7 @@ mod list_time_entries_projector_tests {
     #[tokio::test]
     async fn it_should_rebuild_and_apply_on_schema_mismatch() {
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        register_one_entry(event_store.clone()).await;
+        initiate_and_register(event_store.clone(), "te-abc", "TimeEntry-abc").await;
 
         let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         // Schema not set → mismatch → rebuild
@@ -219,7 +286,7 @@ mod list_time_entries_projector_tests {
     async fn it_should_emit_rebuild_failed_and_exit_when_store_offline_at_startup() {
         let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(16);
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx.clone());
-        register_one_entry(event_store.clone()).await;
+        initiate_and_register(event_store.clone(), "te-abc", "TimeEntry-abc").await;
 
         let mut projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         projection_store.toggle_offline();
@@ -242,7 +309,7 @@ mod list_time_entries_projector_tests {
 
     #[rstest]
     #[tokio::test]
-    async fn it_should_apply_event_from_channel_and_emit_event_applied() {
+    async fn it_should_apply_initiate_event_from_channel_and_emit_event_applied() {
         let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(16);
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx.clone());
 
@@ -263,10 +330,10 @@ mod list_time_entries_projector_tests {
         tokio::spawn(projector.run(receiver));
 
         let outbox = InMemoryDomainOutbox::new();
-        RegisterTimeEntryHandler::new("t", event_store, outbox)
+        SetStartedAtHandler::new("t", event_store, outbox)
             .handle(
                 "TimeEntry-1",
-                RegisterTimeEntryBuilder::new()
+                SetStartedAtBuilder::new()
                     .time_entry_id("te-1".to_string())
                     .build(),
             )
@@ -285,6 +352,133 @@ mod list_time_entries_projector_tests {
             }
         }
         assert!(got_applied);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_apply_all_mutation_types() {
+        let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(64);
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx.clone());
+
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        projection_store
+            .save_schema_version(SCHEMA_VERSION)
+            .await
+            .unwrap();
+
+        let (tech_tx, _) = broadcast::channel(64);
+        let projector = ListTimeEntriesProjector::new(
+            "p",
+            projection_store.clone(),
+            event_store.clone(),
+            tech_tx,
+        );
+        let receiver = tx.subscribe();
+        tokio::spawn(projector.run(receiver));
+
+        // Append events covering all mutation types
+        let events = vec![
+            TimeEntryEvent::TimeEntryInitiatedV1(TimeEntryInitiatedV1 {
+                time_entry_id: "te-mut".to_string(),
+                user_id: "user-0001".to_string(),
+                created_at: 1_000,
+                created_by: "user-0001".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryStartSetV1(TimeEntryStartSetV1 {
+                time_entry_id: "te-mut".to_string(),
+                started_at: 500,
+                updated_at: 1_000,
+                updated_by: "user-0001".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryEndSetV1(TimeEntryEndSetV1 {
+                time_entry_id: "te-mut".to_string(),
+                ended_at: 800,
+                updated_at: 1_000,
+                updated_by: "user-0001".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
+                time_entry_id: "te-mut".to_string(),
+                occurred_at: 1_000,
+            }),
+            TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
+                time_entry_id: "te-mut".to_string(),
+                deleted_at: 2_000,
+                deleted_by: "user-0001".to_string(),
+            }),
+        ];
+        event_store
+            .append("TimeEntry-te-mut", 0, &events)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let state = projection_store.state().await.unwrap().unwrap();
+        let row = state.rows.get("te-mut").expect("row should exist");
+        use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryStatus;
+        assert_eq!(row.started_at, Some(500));
+        assert_eq!(row.ended_at, Some(800));
+        assert_eq!(row.status, TimeEntryStatus::Registered);
+        assert_eq!(row.deleted_at, Some(2_000));
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_silently_skip_mutations_when_row_not_found() {
+        let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(64);
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx.clone());
+
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        projection_store
+            .save_schema_version(SCHEMA_VERSION)
+            .await
+            .unwrap();
+
+        let (tech_tx, _) = broadcast::channel(64);
+        let projector = ListTimeEntriesProjector::new(
+            "p",
+            projection_store.clone(),
+            event_store.clone(),
+            tech_tx,
+        );
+        let receiver = tx.subscribe();
+        tokio::spawn(projector.run(receiver));
+
+        // Send SetStartedAt, SetEndedAt, SetRegistered, and SetDeleted without a preceding
+        // Initiated event — these should all be silently skipped (row not found)
+        let events = vec![
+            TimeEntryEvent::TimeEntryStartSetV1(TimeEntryStartSetV1 {
+                time_entry_id: "te-orphan".to_string(),
+                started_at: 1_000,
+                updated_at: 2_000,
+                updated_by: "u1".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryEndSetV1(TimeEntryEndSetV1 {
+                time_entry_id: "te-orphan".to_string(),
+                ended_at: 3_000,
+                updated_at: 2_000,
+                updated_by: "u1".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
+                time_entry_id: "te-orphan".to_string(),
+                occurred_at: 2_000,
+            }),
+            TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
+                time_entry_id: "te-orphan".to_string(),
+                deleted_at: 4_000,
+                deleted_by: "u1".to_string(),
+            }),
+        ];
+        event_store
+            .append("TimeEntry-te-orphan", 0, &events)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // No row should have been created since Initiated was never sent
+        let state = projection_store.state().await.unwrap().unwrap();
+        assert!(state.rows.is_empty());
     }
 
     #[rstest]
@@ -315,10 +509,10 @@ mod list_time_entries_projector_tests {
         tokio::spawn(projector.run(receiver));
 
         let outbox = InMemoryDomainOutbox::new();
-        RegisterTimeEntryHandler::new("t", event_store, outbox)
+        SetStartedAtHandler::new("t", event_store, outbox)
             .handle(
                 "TimeEntry-skip",
-                RegisterTimeEntryBuilder::new()
+                SetStartedAtBuilder::new()
                     .time_entry_id("te-skip".to_string())
                     .build(),
             )
@@ -360,10 +554,10 @@ mod list_time_entries_projector_tests {
         projection_store.toggle_offline();
 
         let outbox = InMemoryDomainOutbox::new();
-        RegisterTimeEntryHandler::new("t", event_store, outbox)
+        SetStartedAtHandler::new("t", event_store, outbox)
             .handle(
                 "TimeEntry-fail",
-                RegisterTimeEntryBuilder::new()
+                SetStartedAtBuilder::new()
                     .time_entry_id("te-fail".to_string())
                     .build(),
             )
@@ -392,26 +586,8 @@ mod list_time_entries_projector_tests {
 
         let (lag_tx, receiver) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(1);
 
-        let outbox = InMemoryDomainOutbox::new();
-        let handler = RegisterTimeEntryHandler::new("t", event_store.clone(), outbox);
-        handler
-            .handle(
-                "TimeEntry-lag1",
-                RegisterTimeEntryBuilder::new()
-                    .time_entry_id("te-lag1".to_string())
-                    .build(),
-            )
-            .await
-            .unwrap();
-        handler
-            .handle(
-                "TimeEntry-lag2",
-                RegisterTimeEntryBuilder::new()
-                    .time_entry_id("te-lag2".to_string())
-                    .build(),
-            )
-            .await
-            .unwrap();
+        initiate_and_register(event_store.clone(), "te-lag1", "TimeEntry-lag1").await;
+        initiate_and_register(event_store.clone(), "te-lag2", "TimeEntry-lag2").await;
 
         let dummy = event_store.load_all_from(0).await.unwrap().remove(0);
         lag_tx.send(dummy.clone()).unwrap();
@@ -439,7 +615,7 @@ mod list_time_entries_projector_tests {
     #[tokio::test]
     async fn it_should_emit_rebuild_failed_and_exit_on_lagged_offline_store() {
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        register_one_entry(event_store.clone()).await;
+        initiate_and_register(event_store.clone(), "te-abc", "TimeEntry-abc").await;
 
         let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         // Save schema version so the initial check passes (no startup rebuild)
@@ -474,10 +650,8 @@ mod list_time_entries_projector_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_fail_rebuild_when_apply_stored_event_errors() {
-        // Covers: line 128 (apply_stored_event?.await? error path) and
-        //         line 162 (store.save().await? error path inside apply_stored_event)
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        register_one_entry(event_store.clone()).await;
+        initiate_and_register(event_store.clone(), "te-abc", "TimeEntry-abc").await;
 
         let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
         // No schema_version set → mismatch → rebuild will be triggered.
@@ -502,8 +676,6 @@ mod list_time_entries_projector_tests {
     #[rstest]
     #[tokio::test]
     async fn it_should_fail_rebuild_when_save_schema_version_errors() {
-        // Covers: line 130 (store.save_schema_version().await? error path in rebuild)
-        // Use an empty event store so the for loop does not run, then save_schema_version fails.
         let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
 
         let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();

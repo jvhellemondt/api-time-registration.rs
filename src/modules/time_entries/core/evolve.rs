@@ -3,22 +3,104 @@ use crate::modules::time_entries::core::state::TimeEntryState;
 
 pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
     match (state, event) {
-        (TimeEntryState::None, TimeEntryEvent::TimeEntryRegisteredV1(e)) => {
+        (TimeEntryState::None, TimeEntryEvent::TimeEntryInitiatedV1(e)) => TimeEntryState::Draft {
+            time_entry_id: e.time_entry_id,
+            user_id: e.user_id,
+            started_at: None,
+            ended_at: None,
+            created_at: e.created_at,
+            created_by: e.created_by,
+        },
+        (
+            TimeEntryState::Draft {
+                time_entry_id,
+                user_id,
+                ended_at,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryStartSetV1(e),
+        ) => TimeEntryState::Draft {
+            time_entry_id,
+            user_id,
+            started_at: Some(e.started_at),
+            ended_at,
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Draft {
+                time_entry_id,
+                user_id,
+                started_at,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryEndSetV1(e),
+        ) => TimeEntryState::Draft {
+            time_entry_id,
+            user_id,
+            started_at,
+            ended_at: Some(e.ended_at),
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Draft {
+                time_entry_id,
+                user_id,
+                started_at,
+                ended_at,
+                created_at,
+                created_by,
+            },
+            TimeEntryEvent::TimeEntryRegisteredV1(_),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at: started_at.unwrap_or(0),
+            ended_at: ended_at.unwrap_or(0),
+            created_at,
+            created_by,
+        },
+        (
             TimeEntryState::Registered {
-                time_entry_id: e.time_entry_id,
-                user_id: e.user_id,
-                start_time: e.start_time,
-                end_time: e.end_time,
-                tag_ids: e.tag_ids,
-                description: e.description,
-                created_at: e.created_at,
-                created_by: e.created_by.clone(),
-                updated_at: e.created_at,
-                updated_by: e.created_by,
-                deleted_at: None,
-                last_event_id: Box::new(None),
-            }
-        }
+                time_entry_id,
+                user_id,
+                ended_at,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryStartSetV1(e),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at: e.started_at,
+            ended_at,
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Registered {
+                time_entry_id,
+                user_id,
+                started_at,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryEndSetV1(e),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at,
+            ended_at: e.ended_at,
+            created_at,
+            created_by,
+        },
         (state, _) => state,
     }
 }
@@ -26,74 +108,226 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
 #[cfg(test)]
 mod time_entry_evolve_tests {
     use super::*;
+    use crate::modules::time_entries::core::events::v1::time_entry_end_set::TimeEntryEndSetV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
-    use crate::tests::fixtures::events::time_entry_registered_v1::make_time_entry_registered_v1_event;
-    use rstest::{fixture, rstest};
+    use crate::modules::time_entries::core::events::v1::time_entry_start_set::TimeEntryStartSetV1;
+    use rstest::rstest;
 
-    #[fixture]
-    fn registered_event() -> TimeEntryRegisteredV1 {
-        make_time_entry_registered_v1_event()
+    fn make_initiated() -> TimeEntryInitiatedV1 {
+        TimeEntryInitiatedV1 {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        }
     }
 
-    #[rstest]
-    fn it_should_evolve_the_state_to_registered(registered_event: TimeEntryRegisteredV1) {
-        let state = evolve(
-            TimeEntryState::None,
-            TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
-        );
-        match state {
-            TimeEntryState::Registered {
-                time_entry_id,
-                user_id,
-                start_time,
-                end_time,
-                tag_ids,
-                description,
-                created_at,
-                created_by,
-                updated_at,
-                updated_by,
-                deleted_at,
-                last_event_id,
-            } => {
-                assert_eq!(time_entry_id, registered_event.time_entry_id);
-                assert_eq!(user_id, registered_event.user_id);
-                assert_eq!(start_time, registered_event.start_time);
-                assert_eq!(end_time, registered_event.end_time);
-                assert_eq!(tag_ids, registered_event.tag_ids);
-                assert_eq!(description, registered_event.description);
-                assert_eq!(created_at, registered_event.created_at);
-                assert_eq!(created_by, registered_event.created_by);
-                assert_eq!(updated_at, registered_event.created_at);
-                assert_eq!(updated_by, registered_event.created_by);
-                assert_eq!(deleted_at, None);
-                assert_eq!(last_event_id, Box::new(None));
-            }
-            _ => panic!("expected Registered state"),
+    fn make_start_set(started_at: i64) -> TimeEntryStartSetV1 {
+        TimeEntryStartSetV1 {
+            time_entry_id: "te-0001".to_string(),
+            started_at,
+            updated_at: 1_000,
+            updated_by: "user-0001".to_string(),
+        }
+    }
+
+    fn make_end_set(ended_at: i64) -> TimeEntryEndSetV1 {
+        TimeEntryEndSetV1 {
+            time_entry_id: "te-0001".to_string(),
+            ended_at,
+            updated_at: 1_000,
+            updated_by: "user-0001".to_string(),
+        }
+    }
+
+    fn make_registered() -> TimeEntryRegisteredV1 {
+        TimeEntryRegisteredV1 {
+            time_entry_id: "te-0001".to_string(),
+            occurred_at: 1_000,
         }
     }
 
     #[rstest]
-    fn it_should_not_change_on_duplicate_registered_event(registered_event: TimeEntryRegisteredV1) {
-        let registered = evolve(
+    fn none_plus_initiated_becomes_draft() {
+        let state = evolve(
             TimeEntryState::None,
-            TimeEntryEvent::TimeEntryRegisteredV1(registered_event.clone()),
+            TimeEntryEvent::TimeEntryInitiatedV1(make_initiated()),
         );
-        let ev = TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
-            time_entry_id: "te-fixed-0001".into(),
-            user_id: "user-fixed-0001".into(),
-            start_time: 1_700_000_000_000,
-            end_time: 1_700_000_360_000,
-            tag_ids: vec!["Work".into()],
-            description: "This is a test".into(),
-            created_at: 1_700_000_000_000,
-            created_by: "user-fixed-0001".into(),
-        });
-        let next = evolve(registered.clone(), ev);
-        assert_eq!(
-            format!("{:?}", next),
-            format!("{:?}", registered),
-            "state should be unchanged by fallback arm"
+        match state {
+            TimeEntryState::Draft {
+                time_entry_id,
+                user_id,
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(time_entry_id, "te-0001");
+                assert_eq!(user_id, "user-0001");
+                assert_eq!(started_at, None);
+                assert_eq!(ended_at, None);
+            }
+            _ => panic!("expected Draft"),
+        }
+    }
+
+    #[rstest]
+    fn draft_plus_start_set_updates_started_at() {
+        let draft = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryInitiatedV1(make_initiated()),
         );
+        let state = evolve(
+            draft,
+            TimeEntryEvent::TimeEntryStartSetV1(make_start_set(500)),
+        );
+        match state {
+            TimeEntryState::Draft {
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(started_at, Some(500));
+                assert_eq!(ended_at, None);
+            }
+            _ => panic!("expected Draft"),
+        }
+    }
+
+    #[rstest]
+    fn draft_plus_end_set_updates_ended_at() {
+        let draft = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryInitiatedV1(make_initiated()),
+        );
+        let state = evolve(draft, TimeEntryEvent::TimeEntryEndSetV1(make_end_set(800)));
+        match state {
+            TimeEntryState::Draft {
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(started_at, None);
+                assert_eq!(ended_at, Some(800));
+            }
+            _ => panic!("expected Draft"),
+        }
+    }
+
+    #[rstest]
+    fn draft_plus_registered_becomes_registered() {
+        let draft = TimeEntryState::Draft {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            started_at: Some(500),
+            ended_at: Some(800),
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        };
+        let state = evolve(
+            draft,
+            TimeEntryEvent::TimeEntryRegisteredV1(make_registered()),
+        );
+        match state {
+            TimeEntryState::Registered {
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(started_at, 500);
+                assert_eq!(ended_at, 800);
+            }
+            _ => panic!("expected Registered"),
+        }
+    }
+
+    #[rstest]
+    fn registered_plus_start_set_updates_started_at() {
+        let registered = TimeEntryState::Registered {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            started_at: 500,
+            ended_at: 800,
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        };
+        let state = evolve(
+            registered,
+            TimeEntryEvent::TimeEntryStartSetV1(make_start_set(600)),
+        );
+        match state {
+            TimeEntryState::Registered {
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(started_at, 600);
+                assert_eq!(ended_at, 800);
+            }
+            _ => panic!("expected Registered"),
+        }
+    }
+
+    #[rstest]
+    fn registered_plus_end_set_updates_ended_at() {
+        let registered = TimeEntryState::Registered {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            started_at: 500,
+            ended_at: 800,
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        };
+        let state = evolve(
+            registered,
+            TimeEntryEvent::TimeEntryEndSetV1(make_end_set(900)),
+        );
+        match state {
+            TimeEntryState::Registered {
+                started_at,
+                ended_at,
+                ..
+            } => {
+                assert_eq!(started_at, 500);
+                assert_eq!(ended_at, 900);
+            }
+            _ => panic!("expected Registered"),
+        }
+    }
+
+    #[rstest]
+    fn fallback_none_plus_start_set_is_unchanged() {
+        let state = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryStartSetV1(make_start_set(500)),
+        );
+        assert_eq!(state, TimeEntryState::None);
+    }
+
+    #[rstest]
+    fn fallback_none_plus_registered_is_unchanged() {
+        let state = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryRegisteredV1(make_registered()),
+        );
+        assert_eq!(state, TimeEntryState::None);
+    }
+
+    #[rstest]
+    fn fallback_registered_plus_initiated_is_unchanged() {
+        let registered = TimeEntryState::Registered {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            started_at: 500,
+            ended_at: 800,
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        };
+        let expected = registered.clone();
+        let state = evolve(
+            registered,
+            TimeEntryEvent::TimeEntryInitiatedV1(make_initiated()),
+        );
+        assert_eq!(state, expected);
     }
 }

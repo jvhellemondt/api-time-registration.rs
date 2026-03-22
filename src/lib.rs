@@ -19,7 +19,17 @@ pub mod modules {
             pub mod state;
         }
         pub mod use_cases {
-            pub mod register_time_entry {
+            pub mod set_started_at {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod set_ended_at {
                 pub mod command;
                 pub mod decide;
                 pub mod decision;

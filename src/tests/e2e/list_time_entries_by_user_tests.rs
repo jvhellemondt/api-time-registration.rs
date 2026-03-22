@@ -4,13 +4,15 @@ use crate::modules::time_entries::use_cases::list_time_entries_by_user::projecto
     ListTimeEntriesProjector, ProjectionTechnicalEvent,
 };
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
+use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
 use crate::shared::infrastructure::event_store::StoredEvent;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use crate::shared::infrastructure::projection_store::ProjectionStore;
 use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
-use crate::tests::fixtures::commands::register_time_entry::RegisterTimeEntryBuilder;
+use crate::tests::fixtures::commands::set_ended_at::SetEndedAtBuilder;
+use crate::tests::fixtures::commands::set_started_at::SetStartedAtBuilder;
 use tokio::sync::broadcast;
 
 #[tokio::test]
@@ -32,27 +34,39 @@ async fn lists_time_entries_by_user() {
     let receiver = event_tx.subscribe();
     tokio::spawn(projector.run(receiver));
 
-    let handler = RegisterTimeEntryHandler::new("time-entries", store.clone(), outbox);
+    let set_started_at = SetStartedAtHandler::new("time-entries", store.clone(), outbox.clone());
+    let set_ended_at = SetEndedAtHandler::new("time-entries", store.clone(), outbox);
 
-    let commands: Vec<_> = [1000i64, 2000, 1500]
-        .into_iter()
-        .map(|start| {
-            RegisterTimeEntryBuilder::new()
-                .time_entry_id(format!("te-{start}"))
-                .start_time(start)
-                .end_time(start + 60_000)
-                .build()
-        })
-        .collect();
+    // Three entries with different started_at values
+    let entries: Vec<(i64, i64)> = vec![(1_000, 61_000), (2_000, 62_000), (1_500, 61_500)];
 
-    for (iteration, command) in commands.iter().cloned().enumerate() {
-        handler
-            .handle(&format!("TimeEntry-te-{iteration}"), command)
+    for (i, (started_at, ended_at)) in entries.iter().enumerate() {
+        let te_id = format!("te-e2e-{i}");
+        let stream_id = format!("TimeEntry-{te_id}");
+        set_started_at
+            .handle(
+                &stream_id,
+                SetStartedAtBuilder::new()
+                    .time_entry_id(te_id.clone())
+                    .started_at(*started_at)
+                    .build(),
+            )
+            .await
+            .unwrap();
+        set_ended_at
+            .handle(
+                &stream_id,
+                SetEndedAtBuilder::new()
+                    .time_entry_id(te_id.clone())
+                    .ended_at(*ended_at)
+                    .build(),
+            )
             .await
             .unwrap();
     }
 
-    let expected_checkpoint = commands.len() as u64;
+    // Each entry emits: Initiated + StartSet + EndSet + Registered = 4 events
+    let expected_checkpoint = (entries.len() * 4) as u64;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
         if projection_store.checkpoint().await.unwrap() >= expected_checkpoint {
@@ -71,7 +85,9 @@ async fn lists_time_entries_by_user() {
         .unwrap();
 
     assert_eq!(list.len(), 3);
-    assert!(list[0].start_time >= list[1].start_time);
-    assert_eq!(list[0].time_entry_id, commands[1].time_entry_id);
-    assert_eq!(list[0].start_time, commands[1].start_time);
+    // Descending by started_at: 2000 > 1500 > 1000
+    assert!(list[0].started_at >= list[1].started_at);
+    assert_eq!(list[0].started_at, Some(2_000));
+    assert_eq!(list[1].started_at, Some(1_500));
+    assert_eq!(list[2].started_at, Some(1_000));
 }
