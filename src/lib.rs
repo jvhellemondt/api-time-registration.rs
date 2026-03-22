@@ -25,6 +25,7 @@ pub mod modules {
                 pub mod decision;
                 pub mod handler;
                 pub mod inbound {
+                    pub mod graphql;
                     pub mod http;
                 }
             }
@@ -34,6 +35,7 @@ pub mod modules {
                 pub mod decision;
                 pub mod handler;
                 pub mod inbound {
+                    pub mod graphql;
                     pub mod http;
                 }
             }
