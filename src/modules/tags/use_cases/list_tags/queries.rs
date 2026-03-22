@@ -39,6 +39,7 @@ mod list_tags_query_handler_tests {
             name: name.to_string(),
             color: "#FFB3BA".to_string(),
             description: None,
+            deleted: false,
             last_event_id: None,
         }
     }

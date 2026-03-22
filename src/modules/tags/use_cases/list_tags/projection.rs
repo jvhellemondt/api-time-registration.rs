@@ -12,6 +12,7 @@ pub struct TagRow {
     pub name: String,
     pub color: String,
     pub description: Option<String>,
+    pub deleted: bool,
     pub last_event_id: Option<String>,
 }
 
@@ -21,6 +22,7 @@ pub struct TagView {
     pub name: String,
     pub color: String,
     pub description: Option<String>,
+    pub deleted: bool,
 }
 
 impl From<TagRow> for TagView {
@@ -30,6 +32,7 @@ impl From<TagRow> for TagView {
             name: row.name,
             color: row.color,
             description: row.description,
+            deleted: row.deleted,
         }
     }
 }
@@ -46,6 +49,7 @@ mod list_tags_projection_model_tests {
             name: "Work".to_string(),
             color: "#FFB3BA".to_string(),
             description: None,
+            deleted: false,
             last_event_id: None,
         }
     }
@@ -58,6 +62,7 @@ mod list_tags_projection_model_tests {
         assert_eq!(view.name, row.name);
         assert_eq!(view.color, row.color);
         assert_eq!(view.description, row.description);
+        assert_eq!(view.deleted, false);
     }
 
     #[rstest]
