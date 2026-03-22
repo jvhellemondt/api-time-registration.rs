@@ -704,6 +704,87 @@ mod list_tags_projector_tests {
 
     #[rstest]
     #[tokio::test]
+    async fn it_should_ignore_mutations_for_unknown_tag_id() {
+        // Covers the None fallthrough of each `if let Some(row) = state.rows.get_mut(&tag_id)`
+        // for MarkDeleted, SetName, SetColor, SetDescription when the tag was never projected.
+        use crate::modules::tags::core::events::v1::tag_color_set::TagColorSetV1;
+        use crate::modules::tags::core::events::v1::tag_description_set::TagDescriptionSetV1;
+        use crate::modules::tags::core::events::v1::tag_deleted::TagDeletedV1;
+        use crate::modules::tags::core::events::v1::tag_name_set::TagNameSetV1;
+        use crate::shared::infrastructure::event_store::EventStore;
+
+        let event_store = InMemoryEventStore::<TagEvent>::new();
+        // Append events for "ghost-id" which is never created — projector will hit None for each mutation.
+        event_store
+            .append(
+                "Tag-ghost",
+                0,
+                &[TagEvent::TagDeletedV1(TagDeletedV1 {
+                    tag_id: "ghost-id".to_string(),
+                    tenant_id: "ten1".to_string(),
+                    deleted_at: 1000,
+                    deleted_by: "u1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+        event_store
+            .append(
+                "Tag-ghost",
+                1,
+                &[TagEvent::TagNameSetV1(TagNameSetV1 {
+                    tag_id: "ghost-id".to_string(),
+                    tenant_id: "ten1".to_string(),
+                    name: "Ghost".to_string(),
+                    set_at: 2000,
+                    set_by: "u1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+        event_store
+            .append(
+                "Tag-ghost",
+                2,
+                &[TagEvent::TagColorSetV1(TagColorSetV1 {
+                    tag_id: "ghost-id".to_string(),
+                    tenant_id: "ten1".to_string(),
+                    color: "#AABBCC".to_string(),
+                    set_at: 3000,
+                    set_by: "u1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+        event_store
+            .append(
+                "Tag-ghost",
+                3,
+                &[TagEvent::TagDescriptionSetV1(TagDescriptionSetV1 {
+                    tag_id: "ghost-id".to_string(),
+                    tenant_id: "ten1".to_string(),
+                    description: Some("ghost".to_string()),
+                    set_at: 4000,
+                    set_by: "u1".to_string(),
+                })],
+            )
+            .await
+            .unwrap();
+
+        let projection_store = InMemoryProjectionStore::<ListTagsState>::new();
+        let (closed_tx, receiver) = broadcast::channel::<StoredEvent<TagEvent>>(16);
+        drop(closed_tx);
+        let (tech_tx, _) = broadcast::channel(16);
+        let projector = ListTagsProjector::new("p", projection_store.clone(), event_store, tech_tx);
+        projector.run(receiver).await;
+
+        // All mutations silently ignored — projection remains empty.
+        let state = projection_store.state().await.unwrap().unwrap();
+        assert!(state.rows.is_empty());
+    }
+
+    #[rstest]
+    #[tokio::test]
     async fn it_should_exit_when_channel_closed() {
         let (tx, _) = broadcast::channel::<StoredEvent<TagEvent>>(16);
         let event_store = InMemoryEventStore::<TagEvent>::new_with_sender(tx.clone());
