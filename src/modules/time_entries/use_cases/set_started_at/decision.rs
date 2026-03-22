@@ -1,12 +1,10 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
 use crate::modules::time_entries::core::intents::TimeEntryIntent;
+use thiserror::Error;
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq)]
 pub enum DecideError {
-    #[error("time entry already exists")]
-    AlreadyExists,
-
-    #[error("end time must be after start time")]
+    #[error("interval is invalid: started_at must be less than ended_at")]
     InvalidInterval,
 }
 

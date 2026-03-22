@@ -22,7 +22,8 @@ use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::p
     ListTimeEntriesProjector, ProjectionTechnicalEvent,
 };
 use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-use time_entries::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use time_entries::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
+use time_entries::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
 use time_entries::shared::infrastructure::event_store::StoredEvent;
 use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
@@ -51,8 +52,10 @@ async fn main() -> anyhow::Result<()> {
     let receiver = event_tx.subscribe();
     projector_runner::spawn(projector, receiver);
     let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
-    let register_time_entry_handler =
-        RegisterTimeEntryHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
+    let set_started_at_handler =
+        SetStartedAtHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
+    let set_ended_at_handler =
+        SetEndedAtHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
 
     // Tags event store + projector
     let (tag_event_tx, _) = tokio::sync::broadcast::channel::<StoredEvent<TagEvent>>(1024);
@@ -78,7 +81,8 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         list_time_entries_handler,
-        register_time_entry_handler,
+        set_started_at_handler,
+        set_ended_at_handler,
         event_store,
         outbox,
         tag_event_store,

@@ -708,8 +708,8 @@ mod list_tags_projector_tests {
         // Covers the None fallthrough of each `if let Some(row) = state.rows.get_mut(&tag_id)`
         // for MarkDeleted, SetName, SetColor, SetDescription when the tag was never projected.
         use crate::modules::tags::core::events::v1::tag_color_set::TagColorSetV1;
-        use crate::modules::tags::core::events::v1::tag_description_set::TagDescriptionSetV1;
         use crate::modules::tags::core::events::v1::tag_deleted::TagDeletedV1;
+        use crate::modules::tags::core::events::v1::tag_description_set::TagDescriptionSetV1;
         use crate::modules::tags::core::events::v1::tag_name_set::TagNameSetV1;
         use crate::shared::infrastructure::event_store::EventStore;
 

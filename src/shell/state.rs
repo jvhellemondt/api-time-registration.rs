@@ -9,15 +9,18 @@ use crate::modules::tags::use_cases::set_tag_name::handler::SetTagNameHandler;
 use crate::modules::time_entries::core::events::TimeEntryEvent;
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
+use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
+use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub register_time_entry_handler:
-        RegisterTimeEntryHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
+    pub set_started_at_handler:
+        SetStartedAtHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
+    pub set_ended_at_handler:
+        SetEndedAtHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
     pub event_store: InMemoryEventStore<TimeEntryEvent>,
     pub outbox: InMemoryDomainOutbox,
     pub list_time_entries_handler:
