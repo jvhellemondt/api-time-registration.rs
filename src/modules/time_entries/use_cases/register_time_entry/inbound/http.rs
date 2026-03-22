@@ -16,7 +16,7 @@ use crate::shell::state::AppState;
 pub struct RegisterTimeEntryBody {
     pub start_time: i64,
     pub end_time: i64,
-    // pub tags: Vec<String>,
+    // pub tag_ids: Vec<String>,
     // pub description: String,
 }
 
@@ -51,7 +51,7 @@ pub async fn handle(
         user_id: user_id.to_owned(),
         start_time: body.start_time,
         end_time: body.end_time,
-        tags: vec!["work".to_string()],
+        tag_ids: vec!["work".to_string()],
         description: "Work work work work work".to_string(),
         created_at: Utc::now().timestamp_millis(),
         created_by: "user-from-auth".into(),
@@ -85,46 +85,19 @@ mod register_time_entry_http_inbound_tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    use crate::modules::time_entries::core::events::TimeEntryEvent;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
-    use crate::modules::time_entries::use_cases::register_time_entry::handler::RegisterTimeEntryHandler;
-    use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
-    use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
-    use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::shell::state::AppState;
+    use crate::tests::fixtures::tags::make_test_app_state;
 
     use super::handle;
 
     fn make_test_state() -> AppState {
-        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        let outbox = InMemoryDomainOutbox::new();
-        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
-        let register_time_entry_handler =
-            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
-        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
-        AppState {
-            list_time_entries_handler,
-            register_time_entry_handler,
-            event_store,
-            outbox,
-        }
+        make_test_app_state()
     }
 
     fn make_offline_event_store_state() -> AppState {
-        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
-        event_store.toggle_offline();
-        let outbox = InMemoryDomainOutbox::new();
-        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
-        let register_time_entry_handler =
-            RegisterTimeEntryHandler::new("time-entries", event_store.clone(), outbox.clone());
-        let list_time_entries_handler = ListTimeEntriesQueryHandler::new(projection_store);
-        AppState {
-            list_time_entries_handler,
-            register_time_entry_handler,
-            event_store,
-            outbox,
-        }
+        let state = make_test_app_state();
+        state.event_store.toggle_offline();
+        state
     }
 
     fn app(state: AppState) -> Router {

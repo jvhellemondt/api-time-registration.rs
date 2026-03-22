@@ -6,7 +6,7 @@ pub enum TimeEntryState {
         user_id: String,
         start_time: i64,
         end_time: i64,
-        tags: Vec<String>,
+        tag_ids: Vec<String>,
         description: String,
         created_at: i64,
         created_by: String,
@@ -29,7 +29,7 @@ mod time_entry_state_tests {
             user_id: "user-fixed-0001".to_string(),
             start_time: 1_700_000_000_000i64,
             end_time: 1_700_000_360_000i64,
-            tags: vec!["Work".to_string()],
+            tag_ids: vec!["Work".to_string()],
             description: "This is a test".to_string(),
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
@@ -42,12 +42,12 @@ mod time_entry_state_tests {
             TimeEntryState::Registered {
                 time_entry_id,
                 user_id,
-                tags,
+                tag_ids,
                 ..
             } => {
                 assert_eq!(time_entry_id, "te-fixed-0001");
                 assert_eq!(user_id, "user-fixed-0001");
-                assert_eq!(tags, vec!["Work".to_string()]);
+                assert_eq!(tag_ids, vec!["Work".to_string()]);
             }
             _ => panic!("expected Registered state"),
         }

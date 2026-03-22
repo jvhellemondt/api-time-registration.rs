@@ -5,17 +5,18 @@ use uuid::Uuid;
 use crate::modules::time_entries::use_cases::register_time_entry::command::RegisterTimeEntry;
 use crate::shell::state::AppState;
 
-pub struct MutationRoot;
+#[derive(Default)]
+pub struct TimeEntryMutations;
 
 #[Object]
-impl MutationRoot {
+impl TimeEntryMutations {
     async fn register_time_entry(
         &self,
         context: &Context<'_>,
         user_id: String,
         start_time: i64,
         end_time: i64,
-        tags: Vec<String>,
+        tag_ids: Vec<String>,
         description: String,
     ) -> GqlResult<ID> {
         let time_entry_id = Uuid::now_v7();
@@ -26,7 +27,7 @@ impl MutationRoot {
             user_id,
             start_time,
             end_time,
-            tags,
+            tag_ids,
             description,
             created_at: Utc::now().timestamp_millis(),
             created_by: "user-from-auth".into(),

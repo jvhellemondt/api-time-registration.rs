@@ -4,7 +4,7 @@ pub struct TimeEntryRegisteredV1 {
     pub user_id: String,
     pub start_time: i64,
     pub end_time: i64,
-    pub tags: Vec<String>,
+    pub tag_ids: Vec<String>,
     pub description: String,
     pub created_at: i64,
     pub created_by: String,
@@ -26,7 +26,7 @@ mod time_entry_registered_event_tests {
     fn it_should_create_the_registered_event(registered_event: TimeEntryRegisteredV1) {
         assert_eq!(registered_event.time_entry_id, "te-fixed-0001");
         assert_eq!(registered_event.user_id, "user-fixed-0001");
-        assert_eq!(registered_event.tags, vec!["Work".to_string()]);
+        assert_eq!(registered_event.tag_ids, vec!["Work".to_string()]);
     }
 
     #[fixture]

@@ -21,7 +21,7 @@ pub fn decide_register(state: &TimeEntryState, command: RegisterTimeEntry) -> De
                 user_id: command.user_id,
                 start_time: command.start_time,
                 end_time: command.end_time,
-                tags: command.tags,
+                tag_ids: command.tag_ids,
                 description: command.description,
                 created_at: command.created_at,
                 created_by: command.created_by,

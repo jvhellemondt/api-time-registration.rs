@@ -46,6 +46,80 @@ pub mod modules {
             }
         }
     }
+    pub mod tags {
+        pub mod core {
+            pub mod events;
+            pub mod evolve;
+            pub mod projections;
+            pub mod state;
+        }
+        pub mod use_cases {
+            pub mod create_tag {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod delete_tag {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod set_tag_name {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod set_tag_color {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod set_tag_description {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
+            pub mod list_tags {
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+                pub mod projection;
+                pub mod projector;
+                pub mod queries;
+            }
+        }
+        pub mod adapters {
+            pub mod outbound {
+                pub mod event_store;
+            }
+        }
+    }
 }
 
 pub mod shell;

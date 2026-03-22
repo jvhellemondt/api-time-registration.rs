@@ -13,7 +13,7 @@ pub fn apply(stream_id: &str, version: i64, event: &TimeEntryEvent) -> Vec<Mutat
             user_id: details.user_id.clone(),
             start_time: details.start_time,
             end_time: details.end_time,
-            tags: details.tags.clone(),
+            tag_ids: details.tag_ids.clone(),
             description: details.description.clone(),
             created_at: details.created_at,
             created_by: details.created_by.clone(),

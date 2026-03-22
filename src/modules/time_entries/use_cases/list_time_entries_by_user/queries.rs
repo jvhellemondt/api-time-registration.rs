@@ -70,7 +70,7 @@ mod list_time_entries_query_handler_tests {
             user_id: user_id.to_string(),
             start_time,
             end_time: start_time + 1000,
-            tags: vec![],
+            tag_ids: vec![],
             description: String::new(),
             created_at: 0,
             created_by: "sys".to_string(),

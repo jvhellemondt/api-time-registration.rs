@@ -12,6 +12,8 @@ struct InnerState<Projection> {
 struct Inner<Projection: Clone + Send + Sync + 'static> {
     state: RwLock<InnerState<Projection>>,
     is_offline: AtomicBool,
+    fail_next_save: AtomicBool,
+    fail_next_save_schema: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -35,6 +37,8 @@ impl<P: Clone + Send + Sync + 'static> InMemoryProjectionStore<P> {
                     schema_version: None,
                 }),
                 is_offline: AtomicBool::new(false),
+                fail_next_save: AtomicBool::new(false),
+                fail_next_save_schema: AtomicBool::new(false),
             }),
         }
     }
@@ -45,6 +49,16 @@ impl<P: Clone + Send + Sync + 'static> InMemoryProjectionStore<P> {
 
     pub fn is_offline(&self) -> bool {
         self.inner.is_offline.load(Ordering::SeqCst)
+    }
+
+    pub fn set_fail_next_save(&self) {
+        self.inner.fail_next_save.store(true, Ordering::SeqCst);
+    }
+
+    pub fn set_fail_next_save_schema_version(&self) {
+        self.inner
+            .fail_next_save_schema
+            .store(true, Ordering::SeqCst);
     }
 }
 
@@ -75,6 +89,9 @@ impl<P: Clone + Send + Sync + 'static> ProjectionStore<P> for InMemoryProjection
         if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
         }
+        if self.inner.fail_next_save.swap(false, Ordering::SeqCst) {
+            return Err(anyhow::anyhow!("Injected save failure"));
+        }
         let mut inner = self.inner.state.write().await;
         inner.state = Some(state);
         inner.checkpoint = checkpoint;
@@ -84,6 +101,13 @@ impl<P: Clone + Send + Sync + 'static> ProjectionStore<P> for InMemoryProjection
     async fn save_schema_version(&self, version: u32) -> anyhow::Result<()> {
         if self.is_offline() {
             return Err(anyhow::anyhow!("Projection store offline"));
+        }
+        if self
+            .inner
+            .fail_next_save_schema
+            .swap(false, Ordering::SeqCst)
+        {
+            return Err(anyhow::anyhow!("Injected schema version save failure"));
         }
         self.inner.state.write().await.schema_version = Some(version);
         Ok(())
