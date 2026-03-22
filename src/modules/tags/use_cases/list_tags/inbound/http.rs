@@ -55,6 +55,7 @@ mod list_tags_http_inbound_tests {
                 name: "Work".to_string(),
                 color: "#FFB3BA".to_string(),
                 description: Some("Client work".to_string()),
+                deleted: false,
                 last_event_id: None,
             },
         );

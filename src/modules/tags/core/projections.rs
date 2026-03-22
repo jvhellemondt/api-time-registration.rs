@@ -3,7 +3,12 @@ use crate::modules::tags::use_cases::list_tags::projection::TagRow;
 
 pub enum Mutation {
     Upsert(TagRow),
-    Delete(String),
+    MarkDeleted {
+        tag_id: String,
+        deleted_at: i64,
+        deleted_by: String,
+        last_event_id: String,
+    },
     SetName {
         tag_id: String,
         name: String,
@@ -30,9 +35,15 @@ pub fn apply(stream_id: &str, version: i64, event: &TagEvent) -> Vec<Mutation> {
             name: e.name.clone(),
             color: e.color.clone(),
             description: e.description.clone(),
+            deleted: false,
             last_event_id: Some(stream_key),
         })],
-        TagEvent::TagDeletedV1(e) => vec![Mutation::Delete(e.tag_id.clone())],
+        TagEvent::TagDeletedV1(e) => vec![Mutation::MarkDeleted {
+            tag_id: e.tag_id.clone(),
+            deleted_at: e.deleted_at,
+            deleted_by: e.deleted_by.clone(),
+            last_event_id: stream_key,
+        }],
         TagEvent::TagNameSetV1(e) => vec![Mutation::SetName {
             tag_id: e.tag_id.clone(),
             name: e.name.clone(),
@@ -93,7 +104,7 @@ mod tag_projections_apply_tests {
             }),
         );
         assert_eq!(mutations.len(), 1);
-        assert!(matches!(&mutations[0], Mutation::Delete(_)));
+        assert!(matches!(&mutations[0], Mutation::MarkDeleted { .. }));
     }
 
     #[rstest]

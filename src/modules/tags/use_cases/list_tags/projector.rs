@@ -148,8 +148,16 @@ where
                 Mutation::Upsert(row) => {
                     state.rows.insert(row.tag_id.clone(), row);
                 }
-                Mutation::Delete(tag_id) => {
-                    state.rows.remove(&tag_id);
+                Mutation::MarkDeleted {
+                    tag_id,
+                    deleted_at: _,
+                    deleted_by: _,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&tag_id) {
+                        row.deleted = true;
+                        row.last_event_id = Some(last_event_id);
+                    }
                 }
                 Mutation::SetName {
                     tag_id,
@@ -546,7 +554,10 @@ mod list_tags_projector_tests {
         projector.run(receiver).await;
 
         let state = projection_store.state().await.unwrap().unwrap();
-        assert!(!state.rows.contains_key("t2"), "t2 should be deleted");
+        assert!(
+            state.rows.get("t2").unwrap().deleted,
+            "t2 should be marked deleted"
+        );
         let row = state.rows.get("t1").unwrap();
         assert_eq!(row.name, "Renamed");
         assert_eq!(row.color, "#BAFFED");
@@ -609,9 +620,8 @@ mod list_tags_projector_tests {
 
     #[rstest]
     #[tokio::test]
-    async fn it_should_skip_set_mutations_when_tag_row_missing() {
-        // Covers: lines 162, 172, 182 — the if-let-None branches for
-        //         SetName, SetColor, SetDescription when the tag row is absent.
+    async fn it_should_mark_deleted_tag_as_deleted_and_keep_in_projection() {
+        // Covers: MarkDeleted mutation — deleted tag stays in projection with deleted: true.
         use crate::modules::tags::core::events::v1::tag_color_set::TagColorSetV1;
         use crate::modules::tags::core::events::v1::tag_description_set::TagDescriptionSetV1;
         use crate::modules::tags::core::events::v1::tag_name_set::TagNameSetV1;
@@ -687,9 +697,9 @@ mod list_tags_projector_tests {
         let projector = ListTagsProjector::new("p", projection_store.clone(), event_store, tech_tx);
         projector.run(receiver).await;
 
-        // Tag t1 was deleted, so it should not appear in the projection.
+        // Tag t1 was deleted, so it should remain in the projection but marked as deleted.
         let state = projection_store.state().await.unwrap().unwrap();
-        assert!(!state.rows.contains_key("t1"));
+        assert!(state.rows.get("t1").unwrap().deleted);
     }
 
     #[rstest]
