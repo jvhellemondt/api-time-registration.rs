@@ -213,6 +213,7 @@ where
 #[cfg(test)]
 mod list_time_entries_projector_tests {
     use super::*;
+    use crate::modules::time_entries::core::events::v1::time_entry_deleted::TimeEntryDeletedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_end_set::TimeEntryEndSetV1;
     use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
@@ -399,6 +400,11 @@ mod list_time_entries_projector_tests {
                 time_entry_id: "te-mut".to_string(),
                 occurred_at: 1_000,
             }),
+            TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
+                time_entry_id: "te-mut".to_string(),
+                deleted_at: 2_000,
+                deleted_by: "user-0001".to_string(),
+            }),
         ];
         event_store
             .append("TimeEntry-te-mut", 0, &events)
@@ -413,6 +419,66 @@ mod list_time_entries_projector_tests {
         assert_eq!(row.started_at, Some(500));
         assert_eq!(row.ended_at, Some(800));
         assert_eq!(row.status, TimeEntryStatus::Registered);
+        assert_eq!(row.deleted_at, Some(2_000));
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn it_should_silently_skip_mutations_when_row_not_found() {
+        let (tx, _) = broadcast::channel::<StoredEvent<TimeEntryEvent>>(64);
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new_with_sender(tx.clone());
+
+        let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
+        projection_store
+            .save_schema_version(SCHEMA_VERSION)
+            .await
+            .unwrap();
+
+        let (tech_tx, _) = broadcast::channel(64);
+        let projector = ListTimeEntriesProjector::new(
+            "p",
+            projection_store.clone(),
+            event_store.clone(),
+            tech_tx,
+        );
+        let receiver = tx.subscribe();
+        tokio::spawn(projector.run(receiver));
+
+        // Send SetStartedAt, SetEndedAt, SetRegistered, and SetDeleted without a preceding
+        // Initiated event — these should all be silently skipped (row not found)
+        let events = vec![
+            TimeEntryEvent::TimeEntryStartSetV1(TimeEntryStartSetV1 {
+                time_entry_id: "te-orphan".to_string(),
+                started_at: 1_000,
+                updated_at: 2_000,
+                updated_by: "u1".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryEndSetV1(TimeEntryEndSetV1 {
+                time_entry_id: "te-orphan".to_string(),
+                ended_at: 3_000,
+                updated_at: 2_000,
+                updated_by: "u1".to_string(),
+            }),
+            TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
+                time_entry_id: "te-orphan".to_string(),
+                occurred_at: 2_000,
+            }),
+            TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
+                time_entry_id: "te-orphan".to_string(),
+                deleted_at: 4_000,
+                deleted_by: "u1".to_string(),
+            }),
+        ];
+        event_store
+            .append("TimeEntry-te-orphan", 0, &events)
+            .await
+            .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // No row should have been created since Initiated was never sent
+        let state = projection_store.state().await.unwrap().unwrap();
+        assert!(state.rows.is_empty());
     }
 
     #[rstest]

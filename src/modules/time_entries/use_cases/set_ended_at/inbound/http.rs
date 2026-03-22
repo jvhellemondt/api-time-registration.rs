@@ -50,7 +50,6 @@ pub async fn handle_post(
             Json(SetEndedAtResponse { time_entry_id }),
         )
             .into_response(),
-        Err(ApplicationError::Domain(_)) => StatusCode::CONFLICT.into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
