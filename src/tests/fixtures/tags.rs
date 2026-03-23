@@ -11,6 +11,7 @@ use crate::modules::time_entries::use_cases::list_time_entries_by_user::projecti
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
 use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
 use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::handler::SetTimeEntryTagsHandler;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
@@ -24,6 +25,8 @@ pub fn make_test_app_state() -> AppState {
         SetStartedAtHandler::new("time-entries", event_store.clone(), outbox.clone());
     let set_ended_at_handler =
         SetEndedAtHandler::new("time-entries", event_store.clone(), outbox.clone());
+    let set_time_entry_tags_handler =
+        SetTimeEntryTagsHandler::new("time-entries", event_store.clone(), outbox.clone());
     let list_time_entries_handler = ListTimeEntriesQueryHandler::new(time_entry_projection_store);
 
     let tag_event_store = InMemoryEventStore::<TagEvent>::new();
@@ -38,6 +41,7 @@ pub fn make_test_app_state() -> AppState {
     AppState {
         set_started_at_handler,
         set_ended_at_handler,
+        set_time_entry_tags_handler,
         event_store,
         outbox,
         list_time_entries_handler,

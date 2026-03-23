@@ -48,6 +48,16 @@ pub mod modules {
                 pub mod projector;
                 pub mod queries;
             }
+            pub mod set_time_entry_tags {
+                pub mod command;
+                pub mod decide;
+                pub mod decision;
+                pub mod handler;
+                pub mod inbound {
+                    pub mod graphql;
+                    pub mod http;
+                }
+            }
         }
         pub mod adapters {
             pub mod outbound {

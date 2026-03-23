@@ -9,6 +9,7 @@ use crate::modules::tags::use_cases::set_tag_name::inbound::graphql::SetTagNameM
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound::graphql::TimeEntryQueries;
 use crate::modules::time_entries::use_cases::set_ended_at::inbound::graphql::SetEndedAtMutation;
 use crate::modules::time_entries::use_cases::set_started_at::inbound::graphql::SetStartedAtMutation;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::inbound::graphql::SetTimeEntryTagsMutation;
 pub use crate::shell::state::AppState;
 
 #[derive(MergedObject, Default)]
@@ -20,6 +21,7 @@ pub struct MutationRoot(
     SetTagDescriptionMutation,
     SetStartedAtMutation,
     SetEndedAtMutation,
+    SetTimeEntryTagsMutation,
 );
 
 #[derive(MergedObject, Default)]

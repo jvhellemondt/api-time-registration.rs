@@ -11,6 +11,7 @@ use crate::modules::time_entries::use_cases::list_time_entries_by_user::projecti
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
 use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
 use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::handler::SetTimeEntryTagsHandler;
 use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
 use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
@@ -21,6 +22,8 @@ pub struct AppState {
         SetStartedAtHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
     pub set_ended_at_handler:
         SetEndedAtHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
+    pub set_time_entry_tags_handler:
+        SetTimeEntryTagsHandler<InMemoryEventStore<TimeEntryEvent>, InMemoryDomainOutbox>,
     pub event_store: InMemoryEventStore<TimeEntryEvent>,
     pub outbox: InMemoryDomainOutbox,
     pub list_time_entries_handler:

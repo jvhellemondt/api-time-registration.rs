@@ -8,6 +8,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
             user_id: e.user_id,
             started_at: None,
             ended_at: None,
+            tag_ids: vec![],
             created_at: e.created_at,
             created_by: e.created_by,
         },
@@ -16,6 +17,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 time_entry_id,
                 user_id,
                 ended_at,
+                tag_ids,
                 created_at,
                 created_by,
                 ..
@@ -26,6 +28,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
             user_id,
             started_at: Some(e.started_at),
             ended_at,
+            tag_ids,
             created_at,
             created_by,
         },
@@ -34,6 +37,7 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 time_entry_id,
                 user_id,
                 started_at,
+                tag_ids,
                 created_at,
                 created_by,
                 ..
@@ -44,6 +48,67 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
             user_id,
             started_at,
             ended_at: Some(e.ended_at),
+            tag_ids,
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Draft {
+                time_entry_id,
+                user_id,
+                started_at,
+                ended_at,
+                tag_ids,
+                created_at,
+                created_by,
+            },
+            TimeEntryEvent::TimeEntryRegisteredV1(_),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at: started_at.unwrap_or(0),
+            ended_at: ended_at.unwrap_or(0),
+            tag_ids,
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Registered {
+                time_entry_id,
+                user_id,
+                ended_at,
+                tag_ids,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryStartSetV1(e),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at: e.started_at,
+            ended_at,
+            tag_ids,
+            created_at,
+            created_by,
+        },
+        (
+            TimeEntryState::Registered {
+                time_entry_id,
+                user_id,
+                started_at,
+                tag_ids,
+                created_at,
+                created_by,
+                ..
+            },
+            TimeEntryEvent::TimeEntryEndSetV1(e),
+        ) => TimeEntryState::Registered {
+            time_entry_id,
+            user_id,
+            started_at,
+            ended_at: e.ended_at,
+            tag_ids,
             created_at,
             created_by,
         },
@@ -55,31 +120,15 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 ended_at,
                 created_at,
                 created_by,
-            },
-            TimeEntryEvent::TimeEntryRegisteredV1(_),
-        ) => TimeEntryState::Registered {
-            time_entry_id,
-            user_id,
-            started_at: started_at.unwrap_or(0),
-            ended_at: ended_at.unwrap_or(0),
-            created_at,
-            created_by,
-        },
-        (
-            TimeEntryState::Registered {
-                time_entry_id,
-                user_id,
-                ended_at,
-                created_at,
-                created_by,
                 ..
             },
-            TimeEntryEvent::TimeEntryStartSetV1(e),
-        ) => TimeEntryState::Registered {
+            TimeEntryEvent::TimeEntryTagsSetV1(e),
+        ) => TimeEntryState::Draft {
             time_entry_id,
             user_id,
-            started_at: e.started_at,
+            started_at,
             ended_at,
+            tag_ids: e.tag_ids,
             created_at,
             created_by,
         },
@@ -88,16 +137,18 @@ pub fn evolve(state: TimeEntryState, event: TimeEntryEvent) -> TimeEntryState {
                 time_entry_id,
                 user_id,
                 started_at,
+                ended_at,
                 created_at,
                 created_by,
                 ..
             },
-            TimeEntryEvent::TimeEntryEndSetV1(e),
+            TimeEntryEvent::TimeEntryTagsSetV1(e),
         ) => TimeEntryState::Registered {
             time_entry_id,
             user_id,
             started_at,
-            ended_at: e.ended_at,
+            ended_at,
+            tag_ids: e.tag_ids,
             created_at,
             created_by,
         },
@@ -112,6 +163,7 @@ mod time_entry_evolve_tests {
     use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::modules::time_entries::core::events::v1::time_entry_start_set::TimeEntryStartSetV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_tags_set::TimeEntryTagsSetV1;
     use rstest::rstest;
 
     fn make_initiated() -> TimeEntryInitiatedV1 {
@@ -148,6 +200,15 @@ mod time_entry_evolve_tests {
         }
     }
 
+    fn make_tags_set(tag_ids: Vec<String>) -> TimeEntryTagsSetV1 {
+        TimeEntryTagsSetV1 {
+            time_entry_id: "te-0001".to_string(),
+            tag_ids,
+            updated_at: 1_000,
+            updated_by: "user-0001".to_string(),
+        }
+    }
+
     #[rstest]
     fn none_plus_initiated_becomes_draft() {
         let state = evolve(
@@ -160,12 +221,14 @@ mod time_entry_evolve_tests {
                 user_id,
                 started_at,
                 ended_at,
+                tag_ids,
                 ..
             } => {
                 assert_eq!(time_entry_id, "te-0001");
                 assert_eq!(user_id, "user-0001");
                 assert_eq!(started_at, None);
                 assert_eq!(ended_at, None);
+                assert!(tag_ids.is_empty());
             }
             _ => panic!("expected Draft"),
         }
@@ -221,6 +284,7 @@ mod time_entry_evolve_tests {
             user_id: "user-0001".to_string(),
             started_at: Some(500),
             ended_at: Some(800),
+            tag_ids: vec!["tag-1".to_string()],
             created_at: 1_000,
             created_by: "user-0001".to_string(),
         };
@@ -232,10 +296,12 @@ mod time_entry_evolve_tests {
             TimeEntryState::Registered {
                 started_at,
                 ended_at,
+                tag_ids,
                 ..
             } => {
                 assert_eq!(started_at, 500);
                 assert_eq!(ended_at, 800);
+                assert_eq!(tag_ids, vec!["tag-1".to_string()]);
             }
             _ => panic!("expected Registered"),
         }
@@ -248,6 +314,7 @@ mod time_entry_evolve_tests {
             user_id: "user-0001".to_string(),
             started_at: 500,
             ended_at: 800,
+            tag_ids: vec![],
             created_at: 1_000,
             created_by: "user-0001".to_string(),
         };
@@ -275,6 +342,7 @@ mod time_entry_evolve_tests {
             user_id: "user-0001".to_string(),
             started_at: 500,
             ended_at: 800,
+            tag_ids: vec![],
             created_at: 1_000,
             created_by: "user-0001".to_string(),
         };
@@ -290,6 +358,50 @@ mod time_entry_evolve_tests {
             } => {
                 assert_eq!(started_at, 500);
                 assert_eq!(ended_at, 900);
+            }
+            _ => panic!("expected Registered"),
+        }
+    }
+
+    #[rstest]
+    fn draft_plus_tags_set_updates_tag_ids() {
+        let draft = evolve(
+            TimeEntryState::None,
+            TimeEntryEvent::TimeEntryInitiatedV1(make_initiated()),
+        );
+        let state = evolve(
+            draft,
+            TimeEntryEvent::TimeEntryTagsSetV1(make_tags_set(vec![
+                "tag-1".to_string(),
+                "tag-2".to_string(),
+            ])),
+        );
+        match state {
+            TimeEntryState::Draft { tag_ids, .. } => {
+                assert_eq!(tag_ids, vec!["tag-1".to_string(), "tag-2".to_string()]);
+            }
+            _ => panic!("expected Draft"),
+        }
+    }
+
+    #[rstest]
+    fn registered_plus_tags_set_updates_tag_ids() {
+        let registered = TimeEntryState::Registered {
+            time_entry_id: "te-0001".to_string(),
+            user_id: "user-0001".to_string(),
+            started_at: 500,
+            ended_at: 800,
+            tag_ids: vec![],
+            created_at: 1_000,
+            created_by: "user-0001".to_string(),
+        };
+        let state = evolve(
+            registered,
+            TimeEntryEvent::TimeEntryTagsSetV1(make_tags_set(vec!["tag-x".to_string()])),
+        );
+        match state {
+            TimeEntryState::Registered { tag_ids, .. } => {
+                assert_eq!(tag_ids, vec!["tag-x".to_string()]);
             }
             _ => panic!("expected Registered"),
         }
@@ -320,6 +432,7 @@ mod time_entry_evolve_tests {
             user_id: "user-0001".to_string(),
             started_at: 500,
             ended_at: 800,
+            tag_ids: vec![],
             created_at: 1_000,
             created_by: "user-0001".to_string(),
         };

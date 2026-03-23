@@ -72,6 +72,7 @@ mod list_time_entries_query_handler_tests {
             user_id: user_id.to_string(),
             started_at,
             ended_at: started_at.map(|s| s + 1000),
+            tag_ids: vec![],
             status: if started_at.is_some() {
                 TimeEntryStatus::Registered
             } else {

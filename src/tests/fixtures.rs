@@ -8,5 +8,6 @@ pub mod events {
 pub mod commands {
     pub mod set_ended_at;
     pub mod set_started_at;
+    pub mod set_time_entry_tags;
 }
 pub mod tags;

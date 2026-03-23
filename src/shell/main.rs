@@ -24,6 +24,7 @@ use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::p
 use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
 use time_entries::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
 use time_entries::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
+use time_entries::modules::time_entries::use_cases::set_time_entry_tags::handler::SetTimeEntryTagsHandler;
 use time_entries::shared::infrastructure::event_store::StoredEvent;
 use time_entries::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
 use time_entries::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
@@ -56,6 +57,8 @@ async fn main() -> anyhow::Result<()> {
         SetStartedAtHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
     let set_ended_at_handler =
         SetEndedAtHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
+    let set_time_entry_tags_handler =
+        SetTimeEntryTagsHandler::new("time-entries.v1", event_store.clone(), outbox.clone());
 
     // Tags event store + projector
     let (tag_event_tx, _) = tokio::sync::broadcast::channel::<StoredEvent<TagEvent>>(1024);
@@ -83,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         list_time_entries_handler,
         set_started_at_handler,
         set_ended_at_handler,
+        set_time_entry_tags_handler,
         event_store,
         outbox,
         tag_event_store,
