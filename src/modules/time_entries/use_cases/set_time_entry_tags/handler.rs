@@ -1,0 +1,214 @@
+use crate::modules::time_entries::adapters::outbound::intent_outbox::dispatch_intents;
+use crate::modules::time_entries::core::events::TimeEntryEvent;
+use crate::modules::time_entries::core::evolve::evolve;
+use crate::modules::time_entries::core::state::TimeEntryState;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::command::SetTimeEntryTags;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::decide::decide_set_time_entry_tags;
+use crate::modules::time_entries::use_cases::set_time_entry_tags::decision::{
+    DecideError, Decision,
+};
+use crate::shared::infrastructure::event_store::{EventStore, EventStoreError};
+use crate::shared::infrastructure::intent_outbox::{DomainOutbox, OutboxError};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ApplicationError {
+    #[error(transparent)]
+    VersionConflict(#[from] EventStoreError),
+
+    #[error(transparent)]
+    Outbox(#[from] OutboxError),
+
+    #[error("domain rejected: {0}")]
+    Domain(DecideError),
+
+    #[error("unexpected: {0}")]
+    Unexpected(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct SetTimeEntryTagsHandler<TEventStore, TOutbox>
+where
+    TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
+    TOutbox: DomainOutbox + Send + Sync + 'static,
+{
+    topic: String,
+    event_store: TEventStore,
+    outbox: TOutbox,
+}
+
+impl<TEventStore, TOutbox> SetTimeEntryTagsHandler<TEventStore, TOutbox>
+where
+    TEventStore: EventStore<TimeEntryEvent> + Send + Sync + 'static,
+    TOutbox: DomainOutbox + Send + Sync + 'static,
+{
+    pub fn new(topic: impl Into<String>, event_store: TEventStore, outbox: TOutbox) -> Self {
+        Self {
+            topic: topic.into(),
+            event_store,
+            outbox,
+        }
+    }
+
+    pub async fn handle(
+        &self,
+        stream_id: &str,
+        command: SetTimeEntryTags,
+    ) -> Result<(), ApplicationError> {
+        let stream = self
+            .event_store
+            .load(stream_id)
+            .await
+            .map_err(ApplicationError::VersionConflict)?;
+
+        let state = stream
+            .events
+            .iter()
+            .cloned()
+            .fold(TimeEntryState::None, evolve);
+
+        match decide_set_time_entry_tags(&state, command) {
+            Decision::Accepted { events, intents } => {
+                let events_len = events.len();
+                self.event_store
+                    .append(stream_id, stream.version, &events)
+                    .await
+                    .map_err(ApplicationError::VersionConflict)?;
+                dispatch_intents(
+                    &self.outbox,
+                    stream_id,
+                    stream.version,
+                    events_len,
+                    &self.topic,
+                    intents,
+                )
+                .await
+                .map_err(ApplicationError::Outbox)?;
+                Ok(())
+            }
+            Decision::Rejected { reason } => Err(ApplicationError::Domain(reason)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod set_time_entry_tags_handler_tests {
+    use crate::modules::time_entries::core::events::TimeEntryEvent;
+    use crate::modules::time_entries::use_cases::set_time_entry_tags::handler::{
+        ApplicationError, SetTimeEntryTagsHandler,
+    };
+    use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
+    use crate::shared::infrastructure::event_store::{EventStore, EventStoreError};
+    use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+    use crate::tests::fixtures::commands::set_time_entry_tags::SetTimeEntryTagsBuilder;
+    use rstest::{fixture, rstest};
+    use tokio::join;
+
+    const TOPIC: &str = "time-entries";
+
+    type BeforeEachReturn = (
+        &'static str,
+        InMemoryEventStore<TimeEntryEvent>,
+        InMemoryDomainOutbox,
+    );
+
+    #[fixture]
+    fn before_each() -> BeforeEachReturn {
+        let stream_id = "TimeEntry-te-fixed-0001";
+        let event_store = InMemoryEventStore::<TimeEntryEvent>::new();
+        let outbox = InMemoryDomainOutbox::new();
+        (stream_id, event_store, outbox)
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_set_time_entry_tags_creates_draft_on_new_stream(before_each: BeforeEachReturn) {
+        let (stream_id, event_store, outbox) = before_each;
+        let handler = SetTimeEntryTagsHandler::new(TOPIC, event_store.clone(), outbox);
+        handler
+            .handle(stream_id, SetTimeEntryTagsBuilder::new().build())
+            .await
+            .expect("handle failed");
+        let stream = event_store.load(stream_id).await.expect("load failed");
+        // Initiated + TagsSet = 2 events
+        assert_eq!(stream.events.len(), 2);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_set_time_entry_tags_on_existing_draft_emits_tags_set(
+        before_each: BeforeEachReturn,
+    ) {
+        let (stream_id, event_store, outbox) = before_each;
+        let handler = SetTimeEntryTagsHandler::new(TOPIC, event_store.clone(), outbox);
+        // First call creates draft
+        handler
+            .handle(stream_id, SetTimeEntryTagsBuilder::new().build())
+            .await
+            .unwrap();
+        // Second call replaces tags
+        handler
+            .handle(
+                stream_id,
+                SetTimeEntryTagsBuilder::new()
+                    .tag_ids(vec!["tag-updated".to_string()])
+                    .build(),
+            )
+            .await
+            .unwrap();
+        let stream = event_store.load(stream_id).await.unwrap();
+        // Initiated, TagsSet, TagsSet = 3 events
+        assert_eq!(stream.events.len(), 3);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_set_time_entry_tags_fails_if_event_store_is_offline(
+        before_each: BeforeEachReturn,
+    ) {
+        let (stream_id, event_store, outbox) = before_each;
+        event_store.toggle_offline();
+        let handler = SetTimeEntryTagsHandler::new(TOPIC, event_store, outbox);
+        let result = handler
+            .handle(stream_id, SetTimeEntryTagsBuilder::new().build())
+            .await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            ApplicationError::VersionConflict(EventStoreError::Backend(
+                "Event store offline".into()
+            ))
+            .to_string()
+        );
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_set_time_entry_tags_fails_on_version_conflict(before_each: BeforeEachReturn) {
+        let (stream_id, event_store, outbox) = before_each;
+        event_store.set_delay_append_ms(10);
+        let es = event_store;
+        let ob = outbox;
+        let handler1 = SetTimeEntryTagsHandler::new(TOPIC, es.clone(), ob.clone());
+        let handler2 = SetTimeEntryTagsHandler::new(TOPIC, es, ob);
+        let (result1, result2) = join!(
+            handler1.handle(stream_id, SetTimeEntryTagsBuilder::new().build()),
+            handler2.handle(stream_id, SetTimeEntryTagsBuilder::new().build())
+        );
+        assert!(
+            result1.is_ok() ^ result2.is_ok(),
+            "exactly one should fail with conflict"
+        );
+        let err = result1.err().or(result2.err()).unwrap();
+        match err {
+            ApplicationError::VersionConflict(EventStoreError::VersionMismatch {
+                expected,
+                actual,
+            }) => {
+                assert_eq!(expected, 0);
+                assert_eq!(actual, 2);
+            }
+            e => panic!("unexpected error: {e:?}"),
+        }
+    }
+}

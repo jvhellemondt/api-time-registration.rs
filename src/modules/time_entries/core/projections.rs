@@ -28,6 +28,13 @@ pub enum Mutation {
         deleted_at: i64,
         last_event_id: String,
     },
+    SetTags {
+        time_entry_id: String,
+        tag_ids: Vec<String>,
+        updated_at: i64,
+        updated_by: String,
+        last_event_id: String,
+    },
 }
 
 pub fn apply(stream_id: &str, version: i64, event: &TimeEntryEvent) -> Vec<Mutation> {
@@ -38,6 +45,7 @@ pub fn apply(stream_id: &str, version: i64, event: &TimeEntryEvent) -> Vec<Mutat
             user_id: e.user_id.clone(),
             started_at: None,
             ended_at: None,
+            tag_ids: vec![],
             status: TimeEntryStatus::Draft,
             created_at: e.created_at,
             created_by: e.created_by.clone(),
@@ -69,6 +77,13 @@ pub fn apply(stream_id: &str, version: i64, event: &TimeEntryEvent) -> Vec<Mutat
             deleted_at: e.deleted_at,
             last_event_id,
         }],
+        TimeEntryEvent::TimeEntryTagsSetV1(e) => vec![Mutation::SetTags {
+            time_entry_id: e.time_entry_id.clone(),
+            tag_ids: e.tag_ids.clone(),
+            updated_at: e.updated_at,
+            updated_by: e.updated_by.clone(),
+            last_event_id,
+        }],
     }
 }
 
@@ -80,6 +95,7 @@ mod time_entry_projector_apply_tests {
     use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::modules::time_entries::core::events::v1::time_entry_start_set::TimeEntryStartSetV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_tags_set::TimeEntryTagsSetV1;
     use rstest::rstest;
 
     const STREAM_ID: &str = "TimeEntry-te-0001";
@@ -144,5 +160,18 @@ mod time_entry_projector_apply_tests {
         let mutations = apply(STREAM_ID, 5, &event);
         assert_eq!(mutations.len(), 1);
         assert!(matches!(&mutations[0], Mutation::SetDeleted { .. }));
+    }
+
+    #[rstest]
+    fn it_should_apply_tags_set_event() {
+        let event = TimeEntryEvent::TimeEntryTagsSetV1(TimeEntryTagsSetV1 {
+            time_entry_id: "te-0001".to_string(),
+            tag_ids: vec!["tag-1".to_string(), "tag-2".to_string()],
+            updated_at: 1_000,
+            updated_by: "user-0001".to_string(),
+        });
+        let mutations = apply(STREAM_ID, 6, &event);
+        assert_eq!(mutations.len(), 1);
+        assert!(matches!(&mutations[0], Mutation::SetTags { .. }));
     }
 }

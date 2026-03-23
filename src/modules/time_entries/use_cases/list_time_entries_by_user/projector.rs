@@ -201,6 +201,20 @@ where
                         row.last_event_id = Some(last_event_id);
                     }
                 }
+                Mutation::SetTags {
+                    time_entry_id,
+                    tag_ids,
+                    updated_at,
+                    updated_by,
+                    last_event_id,
+                } => {
+                    if let Some(row) = state.rows.get_mut(&time_entry_id) {
+                        row.tag_ids = tag_ids;
+                        row.updated_at = updated_at;
+                        row.updated_by = updated_by;
+                        row.last_event_id = Some(last_event_id);
+                    }
+                }
             }
         }
         self.store
@@ -218,6 +232,7 @@ mod list_time_entries_projector_tests {
     use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
     use crate::modules::time_entries::core::events::v1::time_entry_registered::TimeEntryRegisteredV1;
     use crate::modules::time_entries::core::events::v1::time_entry_start_set::TimeEntryStartSetV1;
+    use crate::modules::time_entries::core::events::v1::time_entry_tags_set::TimeEntryTagsSetV1;
     use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
     use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
     use crate::shared::infrastructure::event_store::EventStore;
@@ -400,6 +415,12 @@ mod list_time_entries_projector_tests {
                 time_entry_id: "te-mut".to_string(),
                 occurred_at: 1_000,
             }),
+            TimeEntryEvent::TimeEntryTagsSetV1(TimeEntryTagsSetV1 {
+                time_entry_id: "te-mut".to_string(),
+                tag_ids: vec!["tag-1".to_string()],
+                updated_at: 1_500,
+                updated_by: "user-0001".to_string(),
+            }),
             TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
                 time_entry_id: "te-mut".to_string(),
                 deleted_at: 2_000,
@@ -419,6 +440,7 @@ mod list_time_entries_projector_tests {
         assert_eq!(row.started_at, Some(500));
         assert_eq!(row.ended_at, Some(800));
         assert_eq!(row.status, TimeEntryStatus::Registered);
+        assert_eq!(row.tag_ids, vec!["tag-1".to_string()]);
         assert_eq!(row.deleted_at, Some(2_000));
     }
 
@@ -444,8 +466,8 @@ mod list_time_entries_projector_tests {
         let receiver = tx.subscribe();
         tokio::spawn(projector.run(receiver));
 
-        // Send SetStartedAt, SetEndedAt, SetRegistered, and SetDeleted without a preceding
-        // Initiated event — these should all be silently skipped (row not found)
+        // Send SetStartedAt, SetEndedAt, SetRegistered, SetTags, and SetDeleted without a
+        // preceding Initiated event — these should all be silently skipped (row not found)
         let events = vec![
             TimeEntryEvent::TimeEntryStartSetV1(TimeEntryStartSetV1 {
                 time_entry_id: "te-orphan".to_string(),
@@ -462,6 +484,12 @@ mod list_time_entries_projector_tests {
             TimeEntryEvent::TimeEntryRegisteredV1(TimeEntryRegisteredV1 {
                 time_entry_id: "te-orphan".to_string(),
                 occurred_at: 2_000,
+            }),
+            TimeEntryEvent::TimeEntryTagsSetV1(TimeEntryTagsSetV1 {
+                time_entry_id: "te-orphan".to_string(),
+                tag_ids: vec!["tag-1".to_string()],
+                updated_at: 2_000,
+                updated_by: "u1".to_string(),
             }),
             TimeEntryEvent::TimeEntryDeletedV1(TimeEntryDeletedV1 {
                 time_entry_id: "te-orphan".to_string(),

@@ -101,6 +101,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: None,
             ended_at: None,
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };
@@ -123,6 +124,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: None,
             ended_at: Some(2_000),
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };
@@ -153,6 +155,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: None,
             ended_at: Some(2_000),
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };
@@ -172,6 +175,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: command.started_at,
             ended_at: command.started_at + 100_000,
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };
@@ -194,6 +198,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: 1_000,
             ended_at: 3_000,
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };
@@ -214,6 +219,7 @@ mod decide_set_started_at_tests {
             user_id: command.user_id.clone(),
             started_at: 1_000,
             ended_at: 2_000,
+            tag_ids: vec![],
             created_at: 0,
             created_by: command.updated_by.clone(),
         };

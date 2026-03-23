@@ -18,6 +18,7 @@ pub struct TimeEntryRow {
     pub user_id: String,
     pub started_at: Option<i64>,
     pub ended_at: Option<i64>,
+    pub tag_ids: Vec<String>,
     pub status: TimeEntryStatus,
     pub created_at: i64,
     pub created_by: String,
@@ -33,6 +34,7 @@ pub struct TimeEntryView {
     pub user_id: String,
     pub started_at: Option<i64>,
     pub ended_at: Option<i64>,
+    pub tag_ids: Vec<String>,
     pub status: TimeEntryStatus,
     pub created_at: i64,
     pub created_by: String,
@@ -48,6 +50,7 @@ impl From<TimeEntryRow> for TimeEntryView {
             user_id: row.user_id,
             started_at: row.started_at,
             ended_at: row.ended_at,
+            tag_ids: row.tag_ids,
             status: row.status,
             created_at: row.created_at,
             created_by: row.created_by,
@@ -70,6 +73,7 @@ mod time_entry_projector_model_tests {
             user_id: "user-fixed-0001".to_string(),
             started_at: None,
             ended_at: None,
+            tag_ids: vec![],
             status: TimeEntryStatus::Draft,
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
@@ -83,6 +87,7 @@ mod time_entry_projector_model_tests {
         assert_eq!(row.status, TimeEntryStatus::Draft);
         assert_eq!(row.started_at, None);
         assert_eq!(row.ended_at, None);
+        assert!(row.tag_ids.is_empty());
     }
 
     #[rstest]
@@ -92,6 +97,7 @@ mod time_entry_projector_model_tests {
             user_id: "user-fixed-0001".to_string(),
             started_at: Some(1_700_000_000_000i64),
             ended_at: Some(1_700_000_360_000i64),
+            tag_ids: vec!["tag-1".to_string()],
             status: TimeEntryStatus::Registered,
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
@@ -103,6 +109,7 @@ mod time_entry_projector_model_tests {
         assert_eq!(row.status, TimeEntryStatus::Registered);
         assert_eq!(row.started_at, Some(1_700_000_000_000i64));
         assert_eq!(row.ended_at, Some(1_700_000_360_000i64));
+        assert_eq!(row.tag_ids, vec!["tag-1".to_string()]);
     }
 
     #[rstest]
@@ -112,6 +119,7 @@ mod time_entry_projector_model_tests {
             user_id: "user-fixed-0001".to_string(),
             started_at: Some(1_700_000_000_000i64),
             ended_at: Some(1_700_000_360_000i64),
+            tag_ids: vec!["tag-1".to_string()],
             status: TimeEntryStatus::Registered,
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
@@ -125,6 +133,7 @@ mod time_entry_projector_model_tests {
         assert_eq!(view.started_at, row.started_at);
         assert_eq!(view.ended_at, row.ended_at);
         assert_eq!(view.status, row.status);
+        assert_eq!(view.tag_ids, row.tag_ids);
     }
 
     #[rstest]

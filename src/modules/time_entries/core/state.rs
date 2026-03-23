@@ -6,6 +6,7 @@ pub enum TimeEntryState {
         user_id: String,
         started_at: Option<i64>,
         ended_at: Option<i64>,
+        tag_ids: Vec<String>,
         created_at: i64,
         created_by: String,
     },
@@ -14,6 +15,7 @@ pub enum TimeEntryState {
         user_id: String,
         started_at: i64,
         ended_at: i64,
+        tag_ids: Vec<String>,
         created_at: i64,
         created_by: String,
     },
@@ -31,6 +33,7 @@ mod time_entry_state_tests {
             user_id: "user-fixed-0001".to_string(),
             started_at: None,
             ended_at: None,
+            tag_ids: vec![],
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
         };
@@ -58,6 +61,7 @@ mod time_entry_state_tests {
             user_id: "user-fixed-0001".to_string(),
             started_at: 1_700_000_000_000i64,
             ended_at: 1_700_000_360_000i64,
+            tag_ids: vec![],
             created_at: 1_700_000_000_000i64,
             created_by: "user-fixed-0001".to_string(),
         };

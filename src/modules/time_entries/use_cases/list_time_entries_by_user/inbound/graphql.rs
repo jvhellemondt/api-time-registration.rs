@@ -107,10 +107,7 @@ mod list_time_entries_graphql_tests {
             .execute(r#"{ listTimeEntriesByUserId(userId: "u-1") { timeEntryId } }"#)
             .await;
         assert!(result.errors.is_empty());
-        assert_eq!(
-            result.data.to_string(),
-            "{listTimeEntriesByUserId: []}"
-        );
+        assert_eq!(result.data.to_string(), "{listTimeEntriesByUserId: []}");
     }
 
     #[tokio::test]
@@ -122,10 +119,7 @@ mod list_time_entries_graphql_tests {
             )
             .await;
         assert!(result.errors.is_empty());
-        assert_eq!(
-            result.data.to_string(),
-            "{listTimeEntriesByUserId: []}"
-        );
+        assert_eq!(result.data.to_string(), "{listTimeEntriesByUserId: []}");
     }
 
     #[rstest]
@@ -147,6 +141,7 @@ mod list_time_entries_graphql_tests {
             user_id: "user-0001".to_string(),
             started_at: Some(1_000),
             ended_at: Some(2_000),
+            tag_ids: vec![],
             status: TimeEntryStatus::Registered,
             created_at: 0,
             created_by: "user-0001".to_string(),
