@@ -5,6 +5,61 @@ use uuid::Uuid;
 use crate::modules::tags::use_cases::create_tag::command::{CreateTag, pick_pastel_color};
 use crate::shell::state::AppState;
 
+#[cfg(test)]
+mod create_tag_graphql_inbound_tests {
+    use async_graphql::{EmptySubscription, Schema};
+
+    use crate::shell::graphql::{MutationRoot, QueryRoot};
+    use crate::tests::fixtures::tags::make_test_app_state;
+
+    fn make_schema_from_state(
+        state: crate::shell::state::AppState,
+    ) -> Schema<QueryRoot, MutationRoot, EmptySubscription> {
+        Schema::build(
+            QueryRoot::default(),
+            MutationRoot::default(),
+            EmptySubscription,
+        )
+        .data(state)
+        .finish()
+    }
+
+    #[tokio::test]
+    async fn returns_id_on_success() {
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(r#"mutation { createTag(name: "my-tag") }"#)
+            .await;
+        assert!(result.errors.is_empty());
+        // ID is a non-empty string returned as a JSON string value
+        let data = result.data.to_string();
+        assert!(data.contains("createTag"));
+        assert!(data.len() > r#"{"createTag":""}"#.len());
+    }
+
+    #[tokio::test]
+    async fn returns_id_with_optional_color_and_description() {
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(
+                r##"mutation { createTag(name: "my-tag", color: "#ff0000", description: "desc") }"##,
+            )
+            .await;
+        assert!(result.errors.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_error_when_event_store_offline() {
+        let state = make_test_app_state();
+        state.tag_event_store.toggle_offline();
+        let schema = make_schema_from_state(state);
+        let result = schema
+            .execute(r#"mutation { createTag(name: "my-tag") }"#)
+            .await;
+        assert!(!result.errors.is_empty());
+    }
+}
+
 #[derive(Default)]
 pub struct CreateTagMutation;
 
