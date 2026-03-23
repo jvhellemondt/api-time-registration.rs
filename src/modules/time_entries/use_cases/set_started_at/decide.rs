@@ -46,7 +46,7 @@ pub fn decide_set_started_at(state: &TimeEntryState, command: SetStartedAt) -> D
             });
             Decision::Accepted {
                 events: vec![start_set_event, registered],
-                intents: vec![TimeEntryIntent::PublishTimeEntryRegistered {
+                intents: vec![TimeEntryIntent::NotifyUser {
                     time_entry_id: command.time_entry_id,
                     occurred_at: command.updated_at,
                 }],
@@ -138,10 +138,7 @@ mod decide_set_started_at_tests {
                     TimeEntryEvent::TimeEntryRegisteredV1(_)
                 ));
                 assert_eq!(intents.len(), 1);
-                assert!(matches!(
-                    &intents[0],
-                    TimeEntryIntent::PublishTimeEntryRegistered { .. }
-                ));
+                assert!(matches!(&intents[0], TimeEntryIntent::NotifyUser { .. }));
             }
             Decision::Rejected { .. } => panic!("expected Accepted"),
         }

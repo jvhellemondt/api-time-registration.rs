@@ -18,25 +18,6 @@ pub async fn dispatch_intents(
     for (i, intent) in intents.into_iter().enumerate() {
         let stream_version = starting_version + (intent_offset + i) as i64 + 1;
         match intent {
-            TimeEntryIntent::PublishTimeEntryRegistered {
-                time_entry_id,
-                occurred_at,
-            } => {
-                outbox
-                    .enqueue(OutboxRow {
-                        topic: topic.to_string(),
-                        event_type: "TimeEntryRegistered".to_string(),
-                        event_version: 1,
-                        stream_id: stream_id.to_string(),
-                        stream_version,
-                        occurred_at,
-                        payload: serde_json::json!({
-                            "time_entry_id": time_entry_id,
-                            "occurred_at": occurred_at
-                        }),
-                    })
-                    .await?;
-            }
             TimeEntryIntent::NotifyUser {
                 time_entry_id,
                 occurred_at,
@@ -71,7 +52,7 @@ mod dispatch_intents_tests {
     #[tokio::test]
     async fn it_should_enqueue_single_intent_successfully() {
         let outbox = InMemoryDomainOutbox::new();
-        let intents = vec![TimeEntryIntent::PublishTimeEntryRegistered {
+        let intents = vec![TimeEntryIntent::NotifyUser {
             time_entry_id: "te-0001".to_string(),
             occurred_at: 1_000,
         }];
@@ -97,7 +78,7 @@ mod dispatch_intents_tests {
         };
         outbox.enqueue(pre_seed_row).await.unwrap();
 
-        let intents = vec![TimeEntryIntent::PublishTimeEntryRegistered {
+        let intents = vec![TimeEntryIntent::NotifyUser {
             time_entry_id: "te-0001".to_string(),
             occurred_at: 2_000,
         }];
@@ -127,7 +108,7 @@ mod dispatch_intents_tests {
     #[tokio::test]
     async fn it_should_propagate_outbox_duplicate_error() {
         let outbox = InMemoryDomainOutbox::new();
-        let intents = vec![TimeEntryIntent::PublishTimeEntryRegistered {
+        let intents = vec![TimeEntryIntent::NotifyUser {
             time_entry_id: "te-0001".to_string(),
             occurred_at: 1_000,
         }];
