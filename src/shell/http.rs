@@ -23,11 +23,6 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route(
-            "/time-entries/start",
-            post(set_started_at_http::handle_post),
-        )
-        .route("/time-entries/end", post(set_ended_at_http::handle_post))
-        .route(
             "/time-entries/{id}/start",
             put(set_started_at_http::handle_put),
         )

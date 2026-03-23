@@ -5,8 +5,8 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use serde::Deserialize;
+use uuid::{Uuid, Version};
 
 use crate::modules::time_entries::use_cases::set_ended_at::command::SetEndedAt;
 use crate::modules::time_entries::use_cases::set_ended_at::handler::ApplicationError;
@@ -18,48 +18,20 @@ pub struct SetEndedAtBody {
     pub ended_at: i64,
 }
 
-#[derive(Serialize)]
-pub struct SetEndedAtResponse {
-    pub time_entry_id: String,
-}
-
-/// POST /time-entries/end — creates a new time entry draft with ended_at
-pub async fn handle_post(
-    State(state): State<AppState>,
-    body: Result<Json<SetEndedAtBody>, JsonRejection>,
-) -> impl IntoResponse {
-    let Json(body) = match body {
-        Ok(b) => b,
-        Err(_) => return StatusCode::UNPROCESSABLE_ENTITY.into_response(),
-    };
-
-    let time_entry_id = Uuid::now_v7().to_string();
-    let stream_id = format!("TimeEntry-{time_entry_id}");
-
-    let command = SetEndedAt {
-        time_entry_id: time_entry_id.clone(),
-        user_id: body.user_id,
-        ended_at: body.ended_at,
-        updated_at: Utc::now().timestamp_millis(),
-        updated_by: "user-from-auth".to_string(),
-    };
-
-    match state.set_ended_at_handler.handle(&stream_id, command).await {
-        Ok(()) => (
-            StatusCode::CREATED,
-            Json(SetEndedAtResponse { time_entry_id }),
-        )
-            .into_response(),
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-    }
-}
-
-/// PUT /time-entries/{id}/end — sets/updates ended_at on an existing entry
+/// PUT /time-entries/{id}/end — sets/updates ended_at on an existing entry (creates if new)
 pub async fn handle_put(
     State(state): State<AppState>,
     Path(time_entry_id): Path<String>,
     body: Result<Json<SetEndedAtBody>, JsonRejection>,
 ) -> impl IntoResponse {
+    let is_valid_v7 = Uuid::parse_str(&time_entry_id)
+        .ok()
+        .filter(|u| u.get_version() == Some(Version::SortRand))
+        .is_some();
+    if !is_valid_v7 {
+        return StatusCode::UNPROCESSABLE_ENTITY.into_response();
+    }
+
     let Json(body) = match body {
         Ok(b) => b,
         Err(_) => return StatusCode::UNPROCESSABLE_ENTITY.into_response(),
@@ -88,12 +60,11 @@ mod set_ended_at_http_inbound_tests {
         Router,
         body::Body,
         http::{Request, StatusCode},
-        routing::{post, put},
+        routing::put,
     };
-    use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    use super::{handle_post, handle_put};
+    use super::handle_put;
     use crate::shell::state::AppState;
     use crate::tests::fixtures::tags::make_test_app_state;
 
@@ -109,62 +80,25 @@ mod set_ended_at_http_inbound_tests {
 
     fn app(state: AppState) -> Router {
         Router::new()
-            .route("/time-entries/end", post(handle_post))
             .route("/time-entries/{id}/end", put(handle_put))
             .with_state(state)
     }
 
-    #[tokio::test]
-    async fn post_returns_201_with_time_entry_id() {
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
-        let response = app(make_test_state())
-            .oneshot(
-                Request::post("/time-entries/end")
-                    .header("content-type", "application/json")
-                    .body(Body::from(body))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::CREATED);
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert!(json.get("time_entry_id").is_some());
+    fn valid_v7_id() -> String {
+        uuid::Uuid::now_v7().to_string()
     }
 
     #[tokio::test]
     async fn put_returns_200_on_valid_request() {
-        let state = make_test_state();
-        // First create a draft via POST
-        let post_body = r#"{"user_id":"u-1","ended_at":1000}"#;
-        let post_response = app(state.clone())
-            .oneshot(
-                Request::post("/time-entries/end")
-                    .header("content-type", "application/json")
-                    .body(Body::from(post_body))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let bytes = post_response
-            .into_body()
-            .collect()
-            .await
-            .unwrap()
-            .to_bytes();
-        let post_json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        let te_id = post_json["time_entry_id"].as_str().unwrap().to_string();
-
-        // Now PUT to update ended_at
-        let put_body = r#"{"user_id":"u-1","ended_at":2000}"#;
-        let response = app(state)
+        let te_id = valid_v7_id();
+        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let response = app(make_test_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
-                    .body(Body::from(put_body))
+                    .body(Body::from(body))
                     .unwrap(),
             )
             .await
@@ -175,25 +109,27 @@ mod set_ended_at_http_inbound_tests {
 
     #[tokio::test]
     async fn put_returns_409_on_invalid_interval() {
-        // Create a draft with started_at, then try to set ended_at <= started_at
         let state = make_test_app_state();
         use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
         use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
         use crate::tests::fixtures::commands::set_started_at::SetStartedAtBuilder;
-        let te_id = "te-conflict-test";
+
+        let te_id = valid_v7_id();
         let stream_id = format!("TimeEntry-{te_id}");
+
+        // Seed a draft with started_at=5000 via the handler directly
         SetStartedAtHandler::new("t", state.event_store.clone(), InMemoryDomainOutbox::new())
             .handle(
                 &stream_id,
                 SetStartedAtBuilder::new()
-                    .time_entry_id(te_id.to_string())
+                    .time_entry_id(te_id.clone())
                     .started_at(5_000)
                     .build(),
             )
             .await
             .unwrap();
 
-        // Now try to PUT ended_at <= started_at (5000)
+        // ended_at=3000 < started_at=5000 → invalid interval → 409
         let body = r#"{"user_id":"u-1","ended_at":3000}"#;
         let response = app(state)
             .oneshot(
@@ -211,12 +147,34 @@ mod set_ended_at_http_inbound_tests {
     }
 
     #[tokio::test]
-    async fn post_returns_422_on_invalid_json() {
+    async fn put_returns_422_on_non_uuid() {
+        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
         let response = app(make_test_state())
             .oneshot(
-                Request::post("/time-entries/end")
+                Request::builder()
+                    .method("PUT")
+                    .uri("/time-entries/not-a-uuid/end")
                     .header("content-type", "application/json")
-                    .body(Body::from("not-json"))
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
+    async fn put_returns_422_on_non_v7_uuid() {
+        // UUID v4 string (not v7)
+        let v4_id = "550e8400-e29b-41d4-a716-446655440000";
+        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let response = app(make_test_state())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/time-entries/{v4_id}/end"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
                     .unwrap(),
             )
             .await
@@ -226,11 +184,12 @@ mod set_ended_at_http_inbound_tests {
 
     #[tokio::test]
     async fn put_returns_422_on_invalid_json() {
+        let te_id = valid_v7_id();
         let response = app(make_test_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri("/time-entries/some-id/end")
+                    .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
                     .body(Body::from("not-json"))
                     .unwrap(),
@@ -241,28 +200,14 @@ mod set_ended_at_http_inbound_tests {
     }
 
     #[tokio::test]
-    async fn post_returns_500_when_event_store_offline() {
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
-        let response = app(make_offline_state())
-            .oneshot(
-                Request::post("/time-entries/end")
-                    .header("content-type", "application/json")
-                    .body(Body::from(body))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    #[tokio::test]
     async fn put_returns_500_when_event_store_offline() {
+        let te_id = valid_v7_id();
         let body = r#"{"user_id":"u-1","ended_at":1000}"#;
         let response = app(make_offline_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
-                    .uri("/time-entries/some-id/end")
+                    .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
                     .body(Body::from(body))
                     .unwrap(),
