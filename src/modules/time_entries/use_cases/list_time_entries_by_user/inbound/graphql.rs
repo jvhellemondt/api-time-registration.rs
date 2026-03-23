@@ -80,8 +80,53 @@ impl TimeEntryQueries {
 
 #[cfg(test)]
 mod list_time_entries_graphql_tests {
+    use async_graphql::{EmptySubscription, Schema};
+
     use super::*;
     use rstest::rstest;
+
+    use crate::shell::graphql::{MutationRoot, QueryRoot};
+    use crate::tests::fixtures::tags::make_test_app_state;
+
+    fn make_schema_from_state(
+        state: crate::shell::state::AppState,
+    ) -> Schema<QueryRoot, MutationRoot, EmptySubscription> {
+        Schema::build(
+            QueryRoot::default(),
+            MutationRoot::default(),
+            EmptySubscription,
+        )
+        .data(state)
+        .finish()
+    }
+
+    #[tokio::test]
+    async fn resolver_returns_empty_list_when_no_entries() {
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(r#"{ listTimeEntriesByUserId(userId: "u-1") { timeEntryId } }"#)
+            .await;
+        assert!(result.errors.is_empty());
+        assert_eq!(
+            result.data.to_string(),
+            "{listTimeEntriesByUserId: []}"
+        );
+    }
+
+    #[tokio::test]
+    async fn resolver_accepts_optional_pagination_params() {
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(
+                r#"{ listTimeEntriesByUserId(userId: "u-1", offset: 0, limit: 10, sortDesc: false) { timeEntryId } }"#,
+            )
+            .await;
+        assert!(result.errors.is_empty());
+        assert_eq!(
+            result.data.to_string(),
+            "{listTimeEntriesByUserId: []}"
+        );
+    }
 
     #[rstest]
     fn it_should_convert_draft_status_to_gql() {

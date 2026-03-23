@@ -5,6 +5,99 @@ use uuid::{Uuid, Version};
 use crate::modules::time_entries::use_cases::set_ended_at::command::SetEndedAt;
 use crate::shell::state::AppState;
 
+#[cfg(test)]
+mod set_ended_at_graphql_inbound_tests {
+    use async_graphql::{EmptySubscription, Schema};
+
+    use crate::shell::graphql::{MutationRoot, QueryRoot};
+    use crate::tests::fixtures::tags::make_test_app_state;
+
+    fn make_schema_from_state(
+        state: crate::shell::state::AppState,
+    ) -> Schema<QueryRoot, MutationRoot, EmptySubscription> {
+        Schema::build(
+            QueryRoot::default(),
+            MutationRoot::default(),
+            EmptySubscription,
+        )
+        .data(state)
+        .finish()
+    }
+
+    fn valid_v7_id() -> String {
+        uuid::Uuid::now_v7().to_string()
+    }
+
+    #[tokio::test]
+    async fn returns_true_on_valid_input() {
+        let te_id = valid_v7_id();
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(format!(
+                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 2000) }}"#
+            ))
+            .await;
+        assert!(result.errors.is_empty());
+        assert_eq!(result.data.to_string(), "{setEndedAt: true}");
+    }
+
+    #[tokio::test]
+    async fn returns_error_on_non_v7_uuid() {
+        let v4_id = "550e8400-e29b-41d4-a716-446655440000";
+        let schema = make_schema_from_state(make_test_app_state());
+        let result = schema
+            .execute(format!(
+                r#"mutation {{ setEndedAt(timeEntryId: "{v4_id}", userId: "u-1", endedAt: 2000) }}"#
+            ))
+            .await;
+        assert!(!result.errors.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_error_on_domain_rejection() {
+        use crate::tests::fixtures::commands::set_started_at::SetStartedAtBuilder;
+
+        let state = make_test_app_state();
+        let te_id = valid_v7_id();
+        let stream_id = format!("TimeEntry-{te_id}");
+
+        // Seed started_at=2000; then ended_at=1000 creates an invalid interval
+        state
+            .set_started_at_handler
+            .handle(
+                &stream_id,
+                SetStartedAtBuilder::new()
+                    .time_entry_id(te_id.clone())
+                    .started_at(2_000)
+                    .build(),
+            )
+            .await
+            .unwrap();
+
+        let schema = make_schema_from_state(state);
+        let result = schema
+            .execute(format!(
+                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 1000) }}"#
+            ))
+            .await;
+        assert!(!result.errors.is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_error_when_event_store_offline() {
+        let state = make_test_app_state();
+        state.event_store.toggle_offline();
+        let te_id = valid_v7_id();
+        let schema = make_schema_from_state(state);
+        let result = schema
+            .execute(format!(
+                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 2000) }}"#
+            ))
+            .await;
+        assert!(!result.errors.is_empty());
+    }
+}
+
 #[derive(Default)]
 pub struct SetEndedAtMutation;
 
