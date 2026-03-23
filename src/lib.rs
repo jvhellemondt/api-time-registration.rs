@@ -40,7 +40,7 @@ pub mod modules {
                     pub mod http;
                 }
             }
-            pub mod list_time_entries_by_user {
+            pub mod list_time_entries {
                 pub mod inbound {
                     pub mod graphql;
                     pub mod http;
@@ -150,6 +150,6 @@ pub mod tests {
     pub mod fixtures;
 
     pub mod e2e {
-        pub mod list_time_entries_by_user_tests;
+        pub mod list_time_entries_tests;
     }
 }

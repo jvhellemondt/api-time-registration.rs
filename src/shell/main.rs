@@ -19,11 +19,11 @@ use time_entries::modules::tags::use_cases::set_tag_color::handler::SetTagColorH
 use time_entries::modules::tags::use_cases::set_tag_description::handler::SetTagDescriptionHandler;
 use time_entries::modules::tags::use_cases::set_tag_name::handler::SetTagNameHandler;
 use time_entries::modules::time_entries::core::events::TimeEntryEvent;
-use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
-use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
+use time_entries::modules::time_entries::use_cases::list_time_entries::projection::ListTimeEntriesState;
+use time_entries::modules::time_entries::use_cases::list_time_entries::projector::{
     ListTimeEntriesProjector, ProjectionTechnicalEvent,
 };
-use time_entries::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
+use time_entries::modules::time_entries::use_cases::list_time_entries::queries::ListTimeEntriesQueryHandler;
 use time_entries::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
 use time_entries::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
 use time_entries::modules::time_entries::use_cases::set_time_entry_tags::handler::SetTimeEntryTagsHandler;
@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let projection_store = InMemoryProjectionStore::<ListTimeEntriesState>::new();
     let (tech_tx, _) = tokio::sync::broadcast::channel::<ProjectionTechnicalEvent>(256);
     let projector = ListTimeEntriesProjector::new(
-        "list_time_entries_by_user",
+        "list_time_entries",
         projection_store.clone(),
         event_store.clone(),
         tech_tx,

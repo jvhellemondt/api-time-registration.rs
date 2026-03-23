@@ -10,7 +10,7 @@ use crate::modules::tags::use_cases::list_tags::inbound::http as list_tags_http;
 use crate::modules::tags::use_cases::set_tag_color::inbound::http as set_tag_color_http;
 use crate::modules::tags::use_cases::set_tag_description::inbound::http as set_tag_description_http;
 use crate::modules::tags::use_cases::set_tag_name::inbound::http as set_tag_name_http;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound::http as list_http;
+use crate::modules::time_entries::use_cases::list_time_entries::inbound::http as list_http;
 use crate::modules::time_entries::use_cases::set_ended_at::inbound::http as set_ended_at_http;
 use crate::modules::time_entries::use_cases::set_started_at::inbound::http as set_started_at_http;
 use crate::modules::time_entries::use_cases::set_time_entry_tags::inbound::http as set_time_entry_tags_http;

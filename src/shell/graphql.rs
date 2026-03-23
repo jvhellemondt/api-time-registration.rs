@@ -6,7 +6,7 @@ use crate::modules::tags::use_cases::list_tags::inbound::graphql::ListTagsQuery;
 use crate::modules::tags::use_cases::set_tag_color::inbound::graphql::SetTagColorMutation;
 use crate::modules::tags::use_cases::set_tag_description::inbound::graphql::SetTagDescriptionMutation;
 use crate::modules::tags::use_cases::set_tag_name::inbound::graphql::SetTagNameMutation;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::inbound::graphql::TimeEntryQueries;
+use crate::modules::time_entries::use_cases::list_time_entries::inbound::graphql::TimeEntryQueries;
 use crate::modules::time_entries::use_cases::set_ended_at::inbound::graphql::SetEndedAtMutation;
 use crate::modules::time_entries::use_cases::set_started_at::inbound::graphql::SetStartedAtMutation;
 use crate::modules::time_entries::use_cases::set_time_entry_tags::inbound::graphql::SetTimeEntryTagsMutation;

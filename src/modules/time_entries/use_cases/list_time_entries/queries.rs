@@ -1,4 +1,4 @@
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+use crate::modules::time_entries::use_cases::list_time_entries::projection::{
     ListTimeEntriesState, TimeEntryView,
 };
 use crate::shared::infrastructure::projection_store::ProjectionStore;
@@ -60,7 +60,7 @@ where
 #[cfg(test)]
 mod list_time_entries_query_handler_tests {
     use super::*;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+    use crate::modules::time_entries::use_cases::list_time_entries::projection::{
         TimeEntryRow, TimeEntryStatus,
     };
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;

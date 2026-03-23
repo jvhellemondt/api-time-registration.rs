@@ -1,9 +1,9 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
+use crate::modules::time_entries::use_cases::list_time_entries::projection::ListTimeEntriesState;
+use crate::modules::time_entries::use_cases::list_time_entries::projector::{
     ListTimeEntriesProjector, ProjectionTechnicalEvent,
 };
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
+use crate::modules::time_entries::use_cases::list_time_entries::queries::ListTimeEntriesQueryHandler;
 use crate::modules::time_entries::use_cases::set_ended_at::handler::SetEndedAtHandler;
 use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
 use crate::shared::infrastructure::event_store::StoredEvent;
@@ -26,7 +26,7 @@ async fn lists_time_entries_by_user() {
 
     let (tech_tx, _) = broadcast::channel::<ProjectionTechnicalEvent>(16);
     let projector = ListTimeEntriesProjector::new(
-        "list_time_entries_by_user",
+        "list_time_entries",
         projection_store.clone(),
         store.clone(),
         tech_tx,

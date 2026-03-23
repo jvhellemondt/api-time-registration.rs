@@ -1,6 +1,6 @@
 use async_graphql::{Context, Enum, Object, Result as GqlResult};
 
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+use crate::modules::time_entries::use_cases::list_time_entries::projection::{
     TimeEntryStatus, TimeEntryView,
 };
 use crate::shared::infrastructure::request_context::RequestContext;
@@ -57,7 +57,7 @@ pub struct TimeEntryQueries;
 
 #[Object]
 impl TimeEntryQueries {
-    async fn list_time_entries_by_user_id(
+    async fn list_time_entries(
         &self,
         context: &Context<'_>,
         offset: Option<i64>,
@@ -116,12 +116,12 @@ mod list_time_entries_graphql_tests {
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
             .execute(
-                async_graphql::Request::new(r#"{ listTimeEntriesByUserId { timeEntryId } }"#)
+                async_graphql::Request::new(r#"{ listTimeEntries { timeEntryId } }"#)
                     .data(req_ctx()),
             )
             .await;
         assert!(result.errors.is_empty());
-        assert_eq!(result.data.to_string(), "{listTimeEntriesByUserId: []}");
+        assert_eq!(result.data.to_string(), "{listTimeEntries: []}");
     }
 
     #[tokio::test]
@@ -130,13 +130,13 @@ mod list_time_entries_graphql_tests {
         let result = schema
             .execute(
                 async_graphql::Request::new(
-                    r#"{ listTimeEntriesByUserId(offset: 0, limit: 10, sortDesc: false) { timeEntryId } }"#,
+                    r#"{ listTimeEntries(offset: 0, limit: 10, sortDesc: false) { timeEntryId } }"#,
                 )
                 .data(req_ctx()),
             )
             .await;
         assert!(result.errors.is_empty());
-        assert_eq!(result.data.to_string(), "{listTimeEntriesByUserId: []}");
+        assert_eq!(result.data.to_string(), "{listTimeEntries: []}");
     }
 
     #[rstest]

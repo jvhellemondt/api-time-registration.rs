@@ -37,7 +37,7 @@ pub async fn handle(
 }
 
 #[cfg(test)]
-mod list_time_entries_by_user_http_inbound_tests {
+mod list_time_entries_http_inbound_tests {
     use axum::{
         Router,
         body::Body,
@@ -48,8 +48,8 @@ mod list_time_entries_by_user_http_inbound_tests {
     use tower::ServiceExt;
 
     use super::handle;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::queries::ListTimeEntriesQueryHandler;
+    use crate::modules::time_entries::use_cases::list_time_entries::projection::ListTimeEntriesState;
+    use crate::modules::time_entries::use_cases::list_time_entries::queries::ListTimeEntriesQueryHandler;
     use crate::shared::infrastructure::projection_store::in_memory::InMemoryProjectionStore;
     use crate::shell::state::AppState;
     use crate::tests::fixtures::tags::make_test_app_state;

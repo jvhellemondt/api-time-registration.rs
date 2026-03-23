@@ -1,4 +1,4 @@
-# use_cases/list_time_entries_by_user folder
+# use_cases/list_time_entries folder
 
 Purpose
 - Projection handler and query port for listing time entries by user.

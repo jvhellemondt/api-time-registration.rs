@@ -1,6 +1,6 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
 use crate::modules::time_entries::core::projections::{Mutation, apply};
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+use crate::modules::time_entries::use_cases::list_time_entries::projection::{
     ListTimeEntriesState, SCHEMA_VERSION,
 };
 use crate::shared::infrastructure::event_store::StoredEvent;
@@ -187,7 +187,7 @@ where
                 } => {
                     if let Some(row) = state.rows.get_mut(&time_entry_id) {
                         row.status =
-                            crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryStatus::Registered;
+                            crate::modules::time_entries::use_cases::list_time_entries::projection::TimeEntryStatus::Registered;
                         row.last_event_id = Some(last_event_id);
                     }
                 }
@@ -436,7 +436,7 @@ mod list_time_entries_projector_tests {
 
         let state = projection_store.state().await.unwrap().unwrap();
         let row = state.rows.get("te-mut").expect("row should exist");
-        use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::TimeEntryStatus;
+        use crate::modules::time_entries::use_cases::list_time_entries::projection::TimeEntryStatus;
         assert_eq!(row.started_at, Some(500));
         assert_eq!(row.ended_at, Some(800));
         assert_eq!(row.status, TimeEntryStatus::Registered);

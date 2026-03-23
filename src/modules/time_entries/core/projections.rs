@@ -1,5 +1,5 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+use crate::modules::time_entries::use_cases::list_time_entries::projection::{
     TimeEntryRow, TimeEntryStatus,
 };
 

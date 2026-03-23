@@ -4,8 +4,8 @@
 // its broadcast receiver. Each projector runs its own loop independently.
 
 use crate::modules::time_entries::core::events::TimeEntryEvent;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::ListTimeEntriesState;
-use crate::modules::time_entries::use_cases::list_time_entries_by_user::projector::ListTimeEntriesProjector;
+use crate::modules::time_entries::use_cases::list_time_entries::projection::ListTimeEntriesState;
+use crate::modules::time_entries::use_cases::list_time_entries::projector::ListTimeEntriesProjector;
 use crate::shared::infrastructure::event_store::StoredEvent;
 use crate::shared::infrastructure::projection_store::ProjectionStore;
 use tokio::sync::broadcast;
@@ -23,10 +23,10 @@ pub fn spawn<TStore>(
 mod project_runner {
     use super::*;
     use crate::modules::time_entries::core::events::TimeEntryEvent;
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
+    use crate::modules::time_entries::use_cases::list_time_entries::projection::{
         ListTimeEntriesState, SCHEMA_VERSION,
     };
-    use crate::modules::time_entries::use_cases::list_time_entries_by_user::projector::{
+    use crate::modules::time_entries::use_cases::list_time_entries::projector::{
         ListTimeEntriesProjector, ProjectionTechnicalEvent,
     };
     use crate::modules::time_entries::use_cases::set_started_at::handler::SetStartedAtHandler;
@@ -52,7 +52,7 @@ mod project_runner {
 
         let (tech_tx, _) = broadcast::channel::<ProjectionTechnicalEvent>(256);
         let projector = ListTimeEntriesProjector::new(
-            "list_time_entries_by_user",
+            "list_time_entries",
             projection_store.clone(),
             event_store.clone(),
             tech_tx,
