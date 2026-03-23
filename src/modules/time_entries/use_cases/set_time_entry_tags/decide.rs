@@ -1,6 +1,7 @@
 use crate::modules::time_entries::core::events::TimeEntryEvent;
 use crate::modules::time_entries::core::events::v1::time_entry_initiated::TimeEntryInitiatedV1;
 use crate::modules::time_entries::core::events::v1::time_entry_tags_set::TimeEntryTagsSetV1;
+use crate::modules::time_entries::core::intents::TimeEntryIntent;
 use crate::modules::time_entries::core::state::TimeEntryState;
 use crate::modules::time_entries::use_cases::set_time_entry_tags::command::SetTimeEntryTags;
 use crate::modules::time_entries::use_cases::set_time_entry_tags::decision::Decision;
@@ -13,6 +14,11 @@ pub fn decide_set_time_entry_tags(state: &TimeEntryState, command: SetTimeEntryT
         updated_by: command.updated_by.clone(),
     });
 
+    let notify = TimeEntryIntent::NotifyUser {
+        time_entry_id: command.time_entry_id.clone(),
+        occurred_at: command.updated_at,
+    };
+
     match state {
         TimeEntryState::None => {
             let initiated = TimeEntryEvent::TimeEntryInitiatedV1(TimeEntryInitiatedV1 {
@@ -23,16 +29,16 @@ pub fn decide_set_time_entry_tags(state: &TimeEntryState, command: SetTimeEntryT
             });
             Decision::Accepted {
                 events: vec![initiated, tags_set_event],
-                intents: vec![],
+                intents: vec![notify],
             }
         }
         TimeEntryState::Draft { .. } => Decision::Accepted {
             events: vec![tags_set_event],
-            intents: vec![],
+            intents: vec![notify],
         },
         TimeEntryState::Registered { .. } => Decision::Accepted {
             events: vec![tags_set_event],
-            intents: vec![],
+            intents: vec![notify],
         },
     }
 }
@@ -40,6 +46,7 @@ pub fn decide_set_time_entry_tags(state: &TimeEntryState, command: SetTimeEntryT
 #[cfg(test)]
 mod decide_set_time_entry_tags_tests {
     use super::*;
+    use crate::modules::time_entries::core::intents::TimeEntryIntent;
     use crate::tests::fixtures::commands::set_time_entry_tags::SetTimeEntryTagsBuilder;
     use rstest::{fixture, rstest};
 
@@ -59,7 +66,8 @@ mod decide_set_time_entry_tags_tests {
                     TimeEntryEvent::TimeEntryInitiatedV1(_)
                 ));
                 assert!(matches!(&events[1], TimeEntryEvent::TimeEntryTagsSetV1(_)));
-                assert!(intents.is_empty());
+                assert_eq!(intents.len(), 1);
+                assert!(matches!(&intents[0], TimeEntryIntent::NotifyUser { .. }));
             }
             Decision::Rejected { .. } => panic!("expected Accepted"),
         }
@@ -81,7 +89,8 @@ mod decide_set_time_entry_tags_tests {
             Decision::Accepted { events, intents } => {
                 assert_eq!(events.len(), 1);
                 assert!(matches!(&events[0], TimeEntryEvent::TimeEntryTagsSetV1(_)));
-                assert!(intents.is_empty());
+                assert_eq!(intents.len(), 1);
+                assert!(matches!(&intents[0], TimeEntryIntent::NotifyUser { .. }));
             }
             Decision::Rejected { .. } => panic!("expected Accepted"),
         }
@@ -103,7 +112,8 @@ mod decide_set_time_entry_tags_tests {
             Decision::Accepted { events, intents } => {
                 assert_eq!(events.len(), 1);
                 assert!(matches!(&events[0], TimeEntryEvent::TimeEntryTagsSetV1(_)));
-                assert!(intents.is_empty());
+                assert_eq!(intents.len(), 1);
+                assert!(matches!(&intents[0], TimeEntryIntent::NotifyUser { .. }));
             }
             Decision::Rejected { .. } => panic!("expected Accepted"),
         }

@@ -100,6 +100,7 @@ mod set_time_entry_tags_handler_tests {
     use crate::shared::infrastructure::event_store::in_memory::InMemoryEventStore;
     use crate::shared::infrastructure::event_store::{EventStore, EventStoreError};
     use crate::shared::infrastructure::intent_outbox::in_memory::InMemoryDomainOutbox;
+    use crate::shared::infrastructure::intent_outbox::{DomainOutbox, OutboxError, OutboxRow};
     use crate::tests::fixtures::commands::set_time_entry_tags::SetTimeEntryTagsBuilder;
     use rstest::{fixture, rstest};
     use tokio::join;
@@ -180,6 +181,36 @@ mod set_time_entry_tags_handler_tests {
             ))
             .to_string()
         );
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn handle_set_time_entry_tags_fails_if_outbox_has_duplicate(
+        before_each: BeforeEachReturn,
+    ) {
+        let (stream_id, event_store, outbox) = before_each;
+        // None state: 2 events appended (Initiated v1, TagsSet v2), 1 NotifyUser intent.
+        // intent_offset = 2 - 1 = 1 → stream_version = 0 + (1 + 0) + 1 = 2
+        outbox
+            .enqueue(OutboxRow {
+                topic: TOPIC.to_string(),
+                event_type: "TimeEntryTagsSet".to_string(),
+                event_version: 1,
+                stream_id: stream_id.to_string(),
+                stream_version: 2,
+                occurred_at: 0,
+                payload: serde_json::json!({}),
+            })
+            .await
+            .unwrap();
+        let handler = SetTimeEntryTagsHandler::new(TOPIC, event_store, outbox);
+        let result = handler
+            .handle(stream_id, SetTimeEntryTagsBuilder::new().build())
+            .await;
+        assert!(matches!(
+            result,
+            Err(ApplicationError::Outbox(OutboxError::Duplicate { .. }))
+        ));
     }
 
     #[rstest]

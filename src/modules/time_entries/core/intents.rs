@@ -6,4 +6,8 @@ pub enum TimeEntryIntent {
         time_entry_id: String,
         occurred_at: i64,
     },
+    NotifyUser {
+        time_entry_id: String,
+        occurred_at: i64,
+    },
 }

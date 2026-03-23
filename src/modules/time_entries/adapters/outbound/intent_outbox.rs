@@ -37,6 +37,25 @@ pub async fn dispatch_intents(
                     })
                     .await?;
             }
+            TimeEntryIntent::NotifyUser {
+                time_entry_id,
+                occurred_at,
+            } => {
+                outbox
+                    .enqueue(OutboxRow {
+                        topic: topic.to_string(),
+                        event_type: "TimeEntryTagsSet".to_string(),
+                        event_version: 1,
+                        stream_id: stream_id.to_string(),
+                        stream_version,
+                        occurred_at,
+                        payload: serde_json::json!({
+                            "time_entry_id": time_entry_id,
+                            "occurred_at": occurred_at
+                        }),
+                    })
+                    .await?;
+            }
         }
     }
     Ok(())
