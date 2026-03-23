@@ -6,11 +6,11 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[derive(Deserialize)]
 pub struct ListTimeEntriesParams {
-    pub user_id: String,
     pub offset: Option<u64>,
     pub limit: Option<u64>,
     pub sort_desc: Option<bool>,
@@ -18,12 +18,13 @@ pub struct ListTimeEntriesParams {
 
 pub async fn handle(
     State(state): State<AppState>,
+    request_ctx: RequestContext,
     Query(params): Query<ListTimeEntriesParams>,
 ) -> impl IntoResponse {
     match state
         .list_time_entries_handler
         .list_by_user_id(
-            &params.user_id,
+            &request_ctx.user_id,
             params.offset.unwrap_or(0),
             params.limit.unwrap_or(20),
             params.sort_desc.unwrap_or(true),
@@ -75,7 +76,9 @@ mod list_time_entries_by_user_http_inbound_tests {
     async fn it_should_return_200_with_empty_list_when_no_entries_exist() {
         let response = app(make_test_state())
             .oneshot(
-                Request::get("/list-time-entries?user_id=u-1")
+                Request::get("/list-time-entries")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -89,24 +92,27 @@ mod list_time_entries_by_user_http_inbound_tests {
     }
 
     #[tokio::test]
-    async fn it_should_return_400_when_user_id_is_missing() {
+    async fn it_should_return_401_when_user_id_header_missing() {
         let response = app(make_test_state())
             .oneshot(
                 Request::get("/list-time-entries")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     async fn it_should_return_500_when_queries_fail() {
         let response = app(make_failing_queries_state())
             .oneshot(
-                Request::get("/list-time-entries?user_id=u-1")
+                Request::get("/list-time-entries")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )

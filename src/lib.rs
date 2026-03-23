@@ -6,6 +6,7 @@ pub mod shared {
         pub mod event_store;
         pub mod intent_outbox;
         pub mod projection_store;
+        pub mod request_context;
     }
 }
 

@@ -2,6 +2,7 @@ use async_graphql::{Context, Object, Result as GqlResult};
 use chrono::Utc;
 
 use crate::modules::tags::use_cases::set_tag_name::command::SetTagName;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[cfg(test)]
@@ -9,6 +10,7 @@ mod set_tag_name_graphql_inbound_tests {
     use async_graphql::{EmptySubscription, Schema};
 
     use crate::modules::tags::use_cases::create_tag::command::{CreateTag, pick_pastel_color};
+    use crate::shared::infrastructure::request_context::RequestContext;
     use crate::shell::graphql::{MutationRoot, QueryRoot};
     use crate::tests::fixtures::tags::make_test_app_state;
 
@@ -22,6 +24,13 @@ mod set_tag_name_graphql_inbound_tests {
         )
         .data(state)
         .finish()
+    }
+
+    fn req_ctx() -> RequestContext {
+        RequestContext {
+            user_id: "u-1".to_string(),
+            tenant_id: "tenant-test".to_string(),
+        }
     }
 
     async fn seed_tag(state: &crate::shell::state::AppState) -> String {
@@ -52,9 +61,12 @@ mod set_tag_name_graphql_inbound_tests {
         let tag_id = seed_tag(&state).await;
         let schema = make_schema_from_state(state);
         let result = schema
-            .execute(format!(
-                r#"mutation {{ setTagName(tagId: "{tag_id}", name: "new-name") }}"#
-            ))
+            .execute(
+                async_graphql::Request::new(format!(
+                    r#"mutation {{ setTagName(tagId: "{tag_id}", name: "new-name") }}"#
+                ))
+                .data(req_ctx()),
+            )
             .await;
         assert!(result.errors.is_empty());
         assert_eq!(result.data.to_string(), "{setTagName: true}");
@@ -66,7 +78,12 @@ mod set_tag_name_graphql_inbound_tests {
         state.tag_event_store.toggle_offline();
         let schema = make_schema_from_state(state);
         let result = schema
-            .execute(r#"mutation { setTagName(tagId: "some-id", name: "new-name") }"#)
+            .execute(
+                async_graphql::Request::new(
+                    r#"mutation { setTagName(tagId: "some-id", name: "new-name") }"#,
+                )
+                .data(req_ctx()),
+            )
             .await;
         assert!(!result.errors.is_empty());
     }
@@ -83,14 +100,17 @@ impl SetTagNameMutation {
         tag_id: String,
         name: String,
     ) -> GqlResult<bool> {
+        let req_ctx = context
+            .data::<RequestContext>()
+            .map_err(|_| async_graphql::Error::new("Unauthorized"))?;
         let state = context.data_unchecked::<AppState>();
         let stream_id = format!("Tag-{tag_id}");
         let command = SetTagName {
             tag_id: tag_id.clone(),
-            tenant_id: "tenant-hardcoded".to_string(),
+            tenant_id: req_ctx.tenant_id.clone(),
             name,
             set_at: Utc::now().timestamp_millis(),
-            set_by: "user-from-auth".to_string(),
+            set_by: req_ctx.user_id.clone(),
         };
 
         state

@@ -7,18 +7,20 @@ use chrono::Utc;
 
 use crate::modules::tags::use_cases::delete_tag::command::DeleteTag;
 use crate::modules::tags::use_cases::delete_tag::handler::ApplicationError;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 pub async fn handle(
     State(state): State<AppState>,
+    request_ctx: RequestContext,
     Path(tag_id): Path<String>,
 ) -> impl IntoResponse {
     let stream_id = format!("Tag-{tag_id}");
     let command = DeleteTag {
         tag_id: tag_id.clone(),
-        tenant_id: "tenant-hardcoded".to_string(),
+        tenant_id: request_ctx.tenant_id,
         deleted_at: Utc::now().timestamp_millis(),
-        deleted_by: "user-from-auth".to_string(),
+        deleted_by: request_ctx.user_id,
     };
 
     match state.delete_tag_handler.handle(&stream_id, command).await {
@@ -75,6 +77,8 @@ mod delete_tag_http_inbound_tests {
         let response = app(state)
             .oneshot(
                 Request::delete("/tags/t-del-1")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -88,6 +92,8 @@ mod delete_tag_http_inbound_tests {
         let response = app(make_test_app_state())
             .oneshot(
                 Request::delete("/tags/nonexistent")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -103,6 +109,8 @@ mod delete_tag_http_inbound_tests {
         app(state.clone())
             .oneshot(
                 Request::delete("/tags/t-del-2")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -111,6 +119,8 @@ mod delete_tag_http_inbound_tests {
         let response = app(state)
             .oneshot(
                 Request::delete("/tags/t-del-2")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -124,9 +134,29 @@ mod delete_tag_http_inbound_tests {
         let state = make_test_app_state();
         state.tag_event_store.toggle_offline();
         let response = app(state)
-            .oneshot(Request::delete("/tags/any").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::delete("/tags/any")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn it_should_return_401_when_user_id_header_missing() {
+        let response = app(make_test_app_state())
+            .oneshot(
+                Request::delete("/tags/any")
+                    .header("x-tenant-id", "tenant-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

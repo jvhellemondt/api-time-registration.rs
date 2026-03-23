@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::modules::tags::use_cases::set_tag_color::command::SetTagColor;
 use crate::modules::tags::use_cases::set_tag_color::handler::ApplicationError;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[derive(Deserialize)]
@@ -18,6 +19,7 @@ pub struct SetTagColorBody {
 
 pub async fn handle(
     State(state): State<AppState>,
+    request_ctx: RequestContext,
     Path(tag_id): Path<String>,
     body: Result<Json<SetTagColorBody>, JsonRejection>,
 ) -> impl IntoResponse {
@@ -29,10 +31,10 @@ pub async fn handle(
     let stream_id = format!("Tag-{tag_id}");
     let command = SetTagColor {
         tag_id: tag_id.clone(),
-        tenant_id: "tenant-hardcoded".to_string(),
+        tenant_id: request_ctx.tenant_id,
         color: body.color,
         set_at: Utc::now().timestamp_millis(),
-        set_by: "user-from-auth".to_string(),
+        set_by: request_ctx.user_id,
     };
 
     match state
@@ -94,6 +96,8 @@ mod set_tag_color_http_inbound_tests {
             .oneshot(
                 Request::patch("/tags/t-sc-1/color")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(r##"{"color":"#BAE1FF"}"##))
                     .unwrap(),
             )
@@ -108,6 +112,8 @@ mod set_tag_color_http_inbound_tests {
             .oneshot(
                 Request::patch("/tags/nonexistent/color")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(r##"{"color":"#BAE1FF"}"##))
                     .unwrap(),
             )
@@ -122,6 +128,8 @@ mod set_tag_color_http_inbound_tests {
             .oneshot(
                 Request::patch("/tags/any/color")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from("not-json"))
                     .unwrap(),
             )
@@ -138,11 +146,28 @@ mod set_tag_color_http_inbound_tests {
             .oneshot(
                 Request::patch("/tags/any/color")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(r##"{"color":"#BAE1FF"}"##))
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn it_should_return_401_when_user_id_header_missing() {
+        let response = app(make_test_app_state())
+            .oneshot(
+                Request::patch("/tags/any/color")
+                    .header("content-type", "application/json")
+                    .header("x-tenant-id", "tenant-test")
+                    .body(Body::from(r##"{"color":"#BAE1FF"}"##))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

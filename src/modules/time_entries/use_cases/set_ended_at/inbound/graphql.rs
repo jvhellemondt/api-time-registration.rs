@@ -3,12 +3,14 @@ use chrono::Utc;
 use uuid::{Uuid, Version};
 
 use crate::modules::time_entries::use_cases::set_ended_at::command::SetEndedAt;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[cfg(test)]
 mod set_ended_at_graphql_inbound_tests {
     use async_graphql::{EmptySubscription, Schema};
 
+    use crate::shared::infrastructure::request_context::RequestContext;
     use crate::shell::graphql::{MutationRoot, QueryRoot};
     use crate::tests::fixtures::tags::make_test_app_state;
 
@@ -24,6 +26,13 @@ mod set_ended_at_graphql_inbound_tests {
         .finish()
     }
 
+    fn req_ctx() -> RequestContext {
+        RequestContext {
+            user_id: "u-1".to_string(),
+            tenant_id: "tenant-test".to_string(),
+        }
+    }
+
     fn valid_v7_id() -> String {
         uuid::Uuid::now_v7().to_string()
     }
@@ -33,9 +42,12 @@ mod set_ended_at_graphql_inbound_tests {
         let te_id = valid_v7_id();
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
-            .execute(format!(
-                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 2000) }}"#
-            ))
+            .execute(
+                async_graphql::Request::new(format!(
+                    r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", endedAt: 2000) }}"#
+                ))
+                .data(req_ctx()),
+            )
             .await;
         assert!(result.errors.is_empty());
         assert_eq!(result.data.to_string(), "{setEndedAt: true}");
@@ -46,9 +58,12 @@ mod set_ended_at_graphql_inbound_tests {
         let v4_id = "550e8400-e29b-41d4-a716-446655440000";
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
-            .execute(format!(
-                r#"mutation {{ setEndedAt(timeEntryId: "{v4_id}", userId: "u-1", endedAt: 2000) }}"#
-            ))
+            .execute(
+                async_graphql::Request::new(format!(
+                    r#"mutation {{ setEndedAt(timeEntryId: "{v4_id}", endedAt: 2000) }}"#
+                ))
+                .data(req_ctx()),
+            )
             .await;
         assert!(!result.errors.is_empty());
     }
@@ -76,9 +91,12 @@ mod set_ended_at_graphql_inbound_tests {
 
         let schema = make_schema_from_state(state);
         let result = schema
-            .execute(format!(
-                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 1000) }}"#
-            ))
+            .execute(
+                async_graphql::Request::new(format!(
+                    r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", endedAt: 1000) }}"#
+                ))
+                .data(req_ctx()),
+            )
             .await;
         assert!(!result.errors.is_empty());
     }
@@ -90,9 +108,12 @@ mod set_ended_at_graphql_inbound_tests {
         let te_id = valid_v7_id();
         let schema = make_schema_from_state(state);
         let result = schema
-            .execute(format!(
-                r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", userId: "u-1", endedAt: 2000) }}"#
-            ))
+            .execute(
+                async_graphql::Request::new(format!(
+                    r#"mutation {{ setEndedAt(timeEntryId: "{te_id}", endedAt: 2000) }}"#
+                ))
+                .data(req_ctx()),
+            )
             .await;
         assert!(!result.errors.is_empty());
     }
@@ -107,7 +128,6 @@ impl SetEndedAtMutation {
         &self,
         context: &Context<'_>,
         time_entry_id: String,
-        user_id: String,
         ended_at: i64,
     ) -> GqlResult<bool> {
         Uuid::parse_str(&time_entry_id)
@@ -115,15 +135,18 @@ impl SetEndedAtMutation {
             .filter(|u| u.get_version() == Some(Version::SortRand))
             .ok_or_else(|| async_graphql::Error::new("time_entry_id must be a valid UUID v7"))?;
 
+        let req_ctx = context
+            .data::<RequestContext>()
+            .map_err(|_| async_graphql::Error::new("Unauthorized"))?;
         let state = context.data_unchecked::<AppState>();
         let stream_id = format!("TimeEntry-{time_entry_id}");
 
         let command = SetEndedAt {
             time_entry_id,
-            user_id,
+            user_id: req_ctx.user_id.clone(),
             ended_at,
             updated_at: Utc::now().timestamp_millis(),
-            updated_by: "user-from-auth".to_string(),
+            updated_by: req_ctx.user_id.clone(),
         };
 
         state

@@ -10,17 +10,18 @@ use uuid::{Uuid, Version};
 
 use crate::modules::time_entries::use_cases::set_ended_at::command::SetEndedAt;
 use crate::modules::time_entries::use_cases::set_ended_at::handler::ApplicationError;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[derive(Deserialize)]
 pub struct SetEndedAtBody {
-    pub user_id: String,
     pub ended_at: i64,
 }
 
 /// PUT /time-entries/{id}/end — sets/updates ended_at on an existing entry (creates if new)
 pub async fn handle_put(
     State(state): State<AppState>,
+    request_ctx: RequestContext,
     Path(time_entry_id): Path<String>,
     body: Result<Json<SetEndedAtBody>, JsonRejection>,
 ) -> impl IntoResponse {
@@ -41,10 +42,10 @@ pub async fn handle_put(
 
     let command = SetEndedAt {
         time_entry_id: time_entry_id.clone(),
-        user_id: body.user_id,
+        user_id: request_ctx.user_id.clone(),
         ended_at: body.ended_at,
         updated_at: Utc::now().timestamp_millis(),
-        updated_by: "user-from-auth".to_string(),
+        updated_by: request_ctx.user_id,
     };
 
     match state.set_ended_at_handler.handle(&stream_id, command).await {
@@ -91,13 +92,15 @@ mod set_ended_at_http_inbound_tests {
     #[tokio::test]
     async fn put_returns_200_on_valid_request() {
         let te_id = valid_v7_id();
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let body = r#"{"ended_at":1000}"#;
         let response = app(make_test_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -130,13 +133,15 @@ mod set_ended_at_http_inbound_tests {
             .unwrap();
 
         // ended_at=3000 < started_at=5000 → invalid interval → 409
-        let body = r#"{"user_id":"u-1","ended_at":3000}"#;
+        let body = r#"{"ended_at":3000}"#;
         let response = app(state)
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -148,13 +153,15 @@ mod set_ended_at_http_inbound_tests {
 
     #[tokio::test]
     async fn put_returns_422_on_non_uuid() {
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let body = r#"{"ended_at":1000}"#;
         let response = app(make_test_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri("/time-entries/not-a-uuid/end")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -167,13 +174,15 @@ mod set_ended_at_http_inbound_tests {
     async fn put_returns_422_on_non_v7_uuid() {
         // UUID v4 string (not v7)
         let v4_id = "550e8400-e29b-41d4-a716-446655440000";
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let body = r#"{"ended_at":1000}"#;
         let response = app(make_test_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!("/time-entries/{v4_id}/end"))
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -191,6 +200,8 @@ mod set_ended_at_http_inbound_tests {
                     .method("PUT")
                     .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from("not-json"))
                     .unwrap(),
             )
@@ -202,18 +213,39 @@ mod set_ended_at_http_inbound_tests {
     #[tokio::test]
     async fn put_returns_500_when_event_store_offline() {
         let te_id = valid_v7_id();
-        let body = r#"{"user_id":"u-1","ended_at":1000}"#;
+        let body = r#"{"ended_at":1000}"#;
         let response = app(make_offline_state())
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!("/time-entries/{te_id}/end"))
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn put_returns_401_when_user_id_header_missing() {
+        let te_id = valid_v7_id();
+        let body = r#"{"ended_at":1000}"#;
+        let response = app(make_test_state())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!("/time-entries/{te_id}/end"))
+                    .header("content-type", "application/json")
+                    .header("x-tenant-id", "tenant-test")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

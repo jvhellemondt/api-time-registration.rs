@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::modules::tags::use_cases::create_tag::command::{CreateTag, pick_pastel_color};
 use crate::modules::tags::use_cases::create_tag::decision::DecideError;
 use crate::modules::tags::use_cases::create_tag::handler::ApplicationError;
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[derive(Deserialize)]
@@ -28,6 +29,7 @@ pub struct CreateTagResponse {
 
 pub async fn handle(
     State(state): State<AppState>,
+    request_ctx: RequestContext,
     body: Result<Json<CreateTagBody>, JsonRejection>,
 ) -> impl IntoResponse {
     let Json(body) = match body {
@@ -47,12 +49,12 @@ pub async fn handle(
 
     let command = CreateTag {
         tag_id: tag_id.to_string(),
-        tenant_id: "tenant-hardcoded".to_string(),
+        tenant_id: request_ctx.tenant_id,
         name: body.name,
         color,
         description: body.description,
         created_at: Utc::now().timestamp_millis(),
-        created_by: "user-from-auth".to_string(),
+        created_by: request_ctx.user_id,
     };
 
     match state.create_tag_handler.handle(&stream_id, command).await {
@@ -96,6 +98,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -116,6 +120,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -135,6 +141,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -153,6 +161,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body.clone()))
                     .unwrap(),
             )
@@ -164,6 +174,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
@@ -178,6 +190,8 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from("not-json"))
                     .unwrap(),
             )
@@ -195,11 +209,29 @@ mod create_tag_http_inbound_tests {
             .oneshot(
                 Request::post("/tags")
                     .header("content-type", "application/json")
+                    .header("x-user-id", "u-1")
+                    .header("x-tenant-id", "tenant-test")
                     .body(Body::from(body))
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn it_should_return_401_when_user_id_header_missing() {
+        let body = r##"{"name":"Work","color":"#FFB3BA"}"##;
+        let response = app(make_test_app_state())
+            .oneshot(
+                Request::post("/tags")
+                    .header("content-type", "application/json")
+                    .header("x-tenant-id", "tenant-test")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

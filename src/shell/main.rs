@@ -1,7 +1,9 @@
 use async_graphql::{EmptySubscription, Schema};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{Extension, Router, routing::get};
+use axum::http::StatusCode;
+use axum::{Extension, Router, http::HeaderMap, routing::get};
 use std::net::SocketAddr;
+use time_entries::shared::infrastructure::request_context::RequestContext;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{EnvFilter, fmt};
 
@@ -124,8 +126,34 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn graphql(Extension(schema): Extension<AppSchema>, req: GraphQLRequest) -> GraphQLResponse {
-    schema.execute(req.into_inner()).await.into()
+async fn graphql(
+    Extension(schema): Extension<AppSchema>,
+    headers: HeaderMap,
+    req: GraphQLRequest,
+) -> GraphQLResponse {
+    let user_id = headers
+        .get("x-user-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let tenant_id = headers
+        .get("x-tenant-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    match (user_id, tenant_id) {
+        (Some(user_id), Some(tenant_id)) => {
+            let ctx = RequestContext { user_id, tenant_id };
+            schema.execute(req.into_inner().data(ctx)).await.into()
+        }
+        _ => GraphQLResponse::from(async_graphql::Response::from_errors(vec![
+            async_graphql::ServerError::new(
+                StatusCode::UNAUTHORIZED
+                    .canonical_reason()
+                    .unwrap()
+                    .to_string(),
+                None,
+            ),
+        ])),
+    }
 }
 
 async fn graphiql() -> axum::response::Html<String> {

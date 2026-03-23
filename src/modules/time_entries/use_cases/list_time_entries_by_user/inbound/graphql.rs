@@ -3,6 +3,7 @@ use async_graphql::{Context, Enum, Object, Result as GqlResult};
 use crate::modules::time_entries::use_cases::list_time_entries_by_user::projection::{
     TimeEntryStatus, TimeEntryView,
 };
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[derive(Debug, Enum, Copy, Clone, Eq, PartialEq)]
@@ -59,16 +60,18 @@ impl TimeEntryQueries {
     async fn list_time_entries_by_user_id(
         &self,
         context: &Context<'_>,
-        user_id: String,
         offset: Option<i64>,
         limit: Option<i64>,
         sort_desc: Option<bool>,
     ) -> GqlResult<Vec<GqlTimeEntry>> {
+        let req_ctx = context
+            .data::<RequestContext>()
+            .map_err(|_| async_graphql::Error::new("Unauthorized"))?;
         let state = context.data_unchecked::<AppState>();
         let list: Vec<TimeEntryView> = state
             .list_time_entries_handler
             .list_by_user_id(
-                &user_id,
+                &req_ctx.user_id,
                 offset.unwrap_or(0).max(0) as u64,
                 limit.unwrap_or(20).max(0) as u64,
                 sort_desc.unwrap_or(true),
@@ -85,6 +88,7 @@ mod list_time_entries_graphql_tests {
     use super::*;
     use rstest::rstest;
 
+    use crate::shared::infrastructure::request_context::RequestContext;
     use crate::shell::graphql::{MutationRoot, QueryRoot};
     use crate::tests::fixtures::tags::make_test_app_state;
 
@@ -100,11 +104,21 @@ mod list_time_entries_graphql_tests {
         .finish()
     }
 
+    fn req_ctx() -> RequestContext {
+        RequestContext {
+            user_id: "u-1".to_string(),
+            tenant_id: "tenant-test".to_string(),
+        }
+    }
+
     #[tokio::test]
     async fn resolver_returns_empty_list_when_no_entries() {
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
-            .execute(r#"{ listTimeEntriesByUserId(userId: "u-1") { timeEntryId } }"#)
+            .execute(
+                async_graphql::Request::new(r#"{ listTimeEntriesByUserId { timeEntryId } }"#)
+                    .data(req_ctx()),
+            )
             .await;
         assert!(result.errors.is_empty());
         assert_eq!(result.data.to_string(), "{listTimeEntriesByUserId: []}");
@@ -115,7 +129,10 @@ mod list_time_entries_graphql_tests {
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
             .execute(
-                r#"{ listTimeEntriesByUserId(userId: "u-1", offset: 0, limit: 10, sortDesc: false) { timeEntryId } }"#,
+                async_graphql::Request::new(
+                    r#"{ listTimeEntriesByUserId(offset: 0, limit: 10, sortDesc: false) { timeEntryId } }"#,
+                )
+                .data(req_ctx()),
             )
             .await;
         assert!(result.errors.is_empty());

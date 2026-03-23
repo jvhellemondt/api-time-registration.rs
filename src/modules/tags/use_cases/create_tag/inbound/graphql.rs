@@ -3,12 +3,14 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::modules::tags::use_cases::create_tag::command::{CreateTag, pick_pastel_color};
+use crate::shared::infrastructure::request_context::RequestContext;
 use crate::shell::state::AppState;
 
 #[cfg(test)]
 mod create_tag_graphql_inbound_tests {
     use async_graphql::{EmptySubscription, Schema};
 
+    use crate::shared::infrastructure::request_context::RequestContext;
     use crate::shell::graphql::{MutationRoot, QueryRoot};
     use crate::tests::fixtures::tags::make_test_app_state;
 
@@ -24,11 +26,21 @@ mod create_tag_graphql_inbound_tests {
         .finish()
     }
 
+    fn req_ctx() -> RequestContext {
+        RequestContext {
+            user_id: "u-1".to_string(),
+            tenant_id: "tenant-test".to_string(),
+        }
+    }
+
     #[tokio::test]
     async fn returns_id_on_success() {
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
-            .execute(r#"mutation { createTag(name: "my-tag") }"#)
+            .execute(
+                async_graphql::Request::new(r#"mutation { createTag(name: "my-tag") }"#)
+                    .data(req_ctx()),
+            )
             .await;
         assert!(result.errors.is_empty());
         // ID is a non-empty string returned as a JSON string value
@@ -42,7 +54,10 @@ mod create_tag_graphql_inbound_tests {
         let schema = make_schema_from_state(make_test_app_state());
         let result = schema
             .execute(
-                r##"mutation { createTag(name: "my-tag", color: "#ff0000", description: "desc") }"##,
+                async_graphql::Request::new(
+                    r##"mutation { createTag(name: "my-tag", color: "#ff0000", description: "desc") }"##,
+                )
+                .data(req_ctx()),
             )
             .await;
         assert!(result.errors.is_empty());
@@ -54,7 +69,10 @@ mod create_tag_graphql_inbound_tests {
         state.tag_event_store.toggle_offline();
         let schema = make_schema_from_state(state);
         let result = schema
-            .execute(r#"mutation { createTag(name: "my-tag") }"#)
+            .execute(
+                async_graphql::Request::new(r#"mutation { createTag(name: "my-tag") }"#)
+                    .data(req_ctx()),
+            )
             .await;
         assert!(!result.errors.is_empty());
     }
@@ -72,6 +90,9 @@ impl CreateTagMutation {
         color: Option<String>,
         description: Option<String>,
     ) -> GqlResult<ID> {
+        let req_ctx = context
+            .data::<RequestContext>()
+            .map_err(|_| async_graphql::Error::new("Unauthorized"))?;
         let state = context.data_unchecked::<AppState>();
         let tag_id = Uuid::now_v7();
         let stream_id = format!("Tag-{tag_id}");
@@ -79,12 +100,12 @@ impl CreateTagMutation {
 
         let command = CreateTag {
             tag_id: tag_id.to_string(),
-            tenant_id: "tenant-hardcoded".to_string(),
+            tenant_id: req_ctx.tenant_id.clone(),
             name,
             color: resolved_color,
             description,
             created_at: Utc::now().timestamp_millis(),
-            created_by: "user-from-auth".to_string(),
+            created_by: req_ctx.user_id.clone(),
         };
 
         state
